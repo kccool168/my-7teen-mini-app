@@ -1,0 +1,9 @@
+{
+  "name": "7teen-cafe-mini-app",
+  "version": "2.0.0",
+  "private": true,
+  "description": "7Teen Café Telegram Mini App — menu ordering with KHQR payment and loyalty stamps",
+  "scripts": {
+    "dev": "vercel dev"
+  }
+}
