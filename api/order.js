@@ -1,7 +1,13 @@
-// Vercel serverless function: /api/order
-// Receives an order from the 7Teen Café Mini App and forwards a formatted
-// report to the shop owner via the Telegram Bot API. No database required —
-// the order lives only in the customer's session and this one message.
+// Vercel serverless function: POST /api/order
+//
+// Called by the Mini App when a customer taps "I've Paid". It:
+//  1. Atomically updates the customer's loyalty stamp count in Redis
+//     (keyed by their Telegram user id), so stamps persist across visits.
+//  2. Sends an order receipt directly to the customer's Telegram chat.
+//  3. Sends the shop's order report to the staff Telegram group.
+import getClient from './_redis.js';
+
+const STAMPS_NEEDED = 6;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -10,10 +16,10 @@ export default async function handler(req, res) {
   }
 
   const BOT_TOKEN = process.env.BOT_TOKEN;
-  const OWNER_CHAT_ID = process.env.OWNER_CHAT_ID;
+  const GROUP_CHAT_ID = process.env.GROUP_CHAT_ID;
 
-  if (!BOT_TOKEN || !OWNER_CHAT_ID) {
-    console.error('Missing BOT_TOKEN or OWNER_CHAT_ID environment variable');
+  if (!BOT_TOKEN || !GROUP_CHAT_ID) {
+    console.error('Missing BOT_TOKEN or GROUP_CHAT_ID environment variable');
     return res.status(500).json({ ok: false, error: 'Server not configured' });
   }
 
@@ -28,30 +34,77 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Order must include at least one item' });
   }
 
-  const message = formatOrderMessage(order);
+  // ---- 1. Persist loyalty stamps (best-effort; order still succeeds if this fails) ----
+  let stamps = 0;
+  let freeCups = 0;
+  const userId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
 
+  if (userId) {
+    try {
+      const client = await getClient();
+      const totalKey = `user:${userId}:total`;
+      const usedKey = `user:${userId}:used`;
+      const cupsInOrder = order.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+
+      if (order.redeemedFreeCup) {
+        const [totalStr, usedStr] = await Promise.all([client.get(totalKey), client.get(usedKey)]);
+        const total = parseInt(totalStr || '0', 10) || 0;
+        const used = parseInt(usedStr || '0', 10) || 0;
+        const available = Math.max(0, Math.floor(total / STAMPS_NEEDED) - used);
+        if (available > 0) {
+          await client.incr(usedKey);
+        }
+      }
+
+      const newTotal = await client.incrBy(totalKey, cupsInOrder);
+      const usedStr2 = await client.get(usedKey);
+      const used2 = parseInt(usedStr2 || '0', 10) || 0;
+      stamps = newTotal % STAMPS_NEEDED;
+      freeCups = Math.max(0, Math.floor(newTotal / STAMPS_NEEDED) - used2);
+    } catch (err) {
+      console.error('Stamp persistence failed', err);
+    }
+  }
+
+  // ---- 2. Send receipt to the customer ----
+  let customerNotified = false;
+  if (userId) {
+    try {
+      const receiptMessage = formatReceiptMessage(order, stamps, freeCups);
+      const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: userId, text: receiptMessage, parse_mode: 'HTML' }),
+      });
+      const tgData = await tgRes.json();
+      customerNotified = !!(tgRes.ok && tgData.ok);
+      if (!customerNotified) console.error('Customer receipt failed', tgData);
+    } catch (err) {
+      console.error('Customer receipt error', err);
+    }
+  }
+
+  // ---- 3. Send report to the staff group ----
+  let groupNotified = false;
   try {
+    const groupMessage = formatGroupMessage(order);
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: OWNER_CHAT_ID,
-        text: message,
-        parse_mode: 'HTML',
-      }),
+      body: JSON.stringify({ chat_id: GROUP_CHAT_ID, text: groupMessage, parse_mode: 'HTML' }),
     });
-
     const tgData = await tgRes.json();
-    if (!tgRes.ok || !tgData.ok) {
-      console.error('Telegram API error', tgData);
-      return res.status(502).json({ ok: false, error: 'Failed to notify owner' });
+    groupNotified = !!(tgRes.ok && tgData.ok);
+    if (!groupNotified) {
+      console.error('Group notify failed', tgData);
+      return res.status(502).json({ ok: false, error: 'Failed to notify group' });
     }
-
-    return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('Order notify failed', err);
+    console.error('Group notify error', err);
     return res.status(500).json({ ok: false, error: 'Internal error' });
   }
+
+  return res.status(200).json({ ok: true, stamps, freeCups, customerNotified, groupNotified });
 }
 
 function esc(s) {
@@ -65,24 +118,24 @@ function money(n) {
   return Number(n || 0).toFixed(2);
 }
 
-function formatOrderMessage(order) {
-  const lines = [];
-  lines.push(`🧾 <b>New order — ${esc(order.orderCode || '')}</b>`);
-  lines.push('');
-
-  order.items.forEach((item) => {
+function itemLines(order) {
+  return order.items.map((item) => {
     const details = [];
     if (item.sugar) details.push(`${esc(item.sugar)} sugar`);
     if (item.addons && item.addons.length) details.push(item.addons.map(esc).join(', '));
     const detailStr = details.length ? ` (${details.join(', ')})` : '';
-    lines.push(`• ${item.qty}× ${esc(item.name)}${detailStr} — $${money(item.unitPrice * item.qty)}`);
+    return `• ${item.qty}× ${esc(item.name)}${detailStr} — $${money(item.unitPrice * item.qty)}`;
   });
+}
 
+function formatGroupMessage(order) {
+  const lines = [];
+  lines.push(`🧾 <b>New order — ${esc(order.orderCode || '')}</b>`);
+  lines.push('');
+  lines.push(...itemLines(order));
   lines.push('');
   lines.push(`Subtotal: $${money(order.subtotal)}`);
-  if (order.redeemedFreeCup && order.discount) {
-    lines.push(`Free cup reward: −$${money(order.discount)}`);
-  }
+  if (order.redeemedFreeCup && order.discount) lines.push(`Free cup reward: −$${money(order.discount)}`);
   lines.push(`<b>Total: $${money(order.total)}</b>`);
   lines.push('');
 
@@ -91,10 +144,30 @@ function formatOrderMessage(order) {
     const handle = order.customer.username ? ` (@${esc(order.customer.username)})` : '';
     lines.push(`👤 ${esc(name) || 'Customer'}${handle}`);
   }
+  if (order.timestamp) lines.push(`🕐 ${esc(order.timestamp)}`);
 
-  if (order.timestamp) {
-    lines.push(`🕐 ${esc(order.timestamp)}`);
+  return lines.join('\n');
+}
+
+function formatReceiptMessage(order, stamps, freeCups) {
+  const lines = [];
+  lines.push(`✅ <b>Order confirmed!</b>`);
+  lines.push(`Pickup code: <b>${esc(order.orderCode || '')}</b>`);
+  lines.push('');
+  lines.push(...itemLines(order));
+  lines.push('');
+  lines.push(`Subtotal: $${money(order.subtotal)}`);
+  if (order.redeemedFreeCup && order.discount) lines.push(`Free cup reward: −$${money(order.discount)}`);
+  lines.push(`<b>Total: $${money(order.total)}</b>`);
+  lines.push('');
+
+  if (freeCups > 0) {
+    lines.push(`☕ Loyalty: ${stamps}/${STAMPS_NEEDED} stamps — ${freeCups} free cup${freeCups === 1 ? '' : 's'} ready to redeem!`);
+  } else {
+    lines.push(`☕ Loyalty: ${stamps}/${STAMPS_NEEDED} stamps`);
   }
+  lines.push('');
+  lines.push('Thank you for ordering from 7Teen Café! 💙');
 
   return lines.join('\n');
 }
