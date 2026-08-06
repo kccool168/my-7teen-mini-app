@@ -199,16 +199,37 @@
   var ORDER_ENDPOINT = "/api/order";
 
   var MENU = [
-    { id:'latte', name:'Iced Latte', desc:'Espresso, cold milk, ice', price:4.5, category:'Coffee', imgLabel:'photo:\niced latte', photo:null },
-    { id:'coldbrew', name:'Cold Brew', desc:'Slow-steeped, smooth & bold', price:4.0, category:'Coffee', imgLabel:'photo:\ncold brew', photo:null },
-    { id:'cappuccino', name:'Cappuccino', desc:'Double shot, velvet foam', price:4.25, category:'Coffee', imgLabel:'photo:\ncappuccino', photo:null },
-    { id:'matcha', name:'Matcha Latte', desc:'Ceremonial grade, oat milk', price:5.0, category:'Tea', imgLabel:'photo:\nmatcha latte', photo:null },
-    { id:'peachtea', name:'Peach Iced Tea', desc:'Black tea, fresh peach', price:3.75, category:'Tea', imgLabel:'photo:\npeach tea', photo:null },
-    { id:'croissant', name:'Croissant', desc:'Butter, flaky, baked daily', price:3.25, category:'Pastries', imgLabel:'photo:\ncroissant', photo:null },
-    { id:'banana', name:'Banana Bread', desc:'Warm, walnuts, cinnamon', price:3.5, category:'Pastries', imgLabel:'photo:\nbanana bread', photo:null },
-    { id:'avotoast', name:'Avocado Toast', desc:'Sourdough, chili flake, lime', price:6.5, category:'Food', imgLabel:'photo:\navo toast', photo:null },
+    // Coffee
+    { id:'7teen-cafe', name:'7Teen Cafe', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\n7teen cafe', photo:null },
+    { id:'ice-latte', name:'Ice Latte', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\nice latte', photo:null },
+    { id:'ice-americano', name:'Ice Americano', desc:'', price:1.25, category:'Coffee', imgLabel:'photo:\nice americano', photo:null },
+    { id:'cafe-oren', name:'Cafe Oren', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\ncafe oren', photo:null },
+    { id:'ice-cappucino', name:'Ice Cappucino', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\nice cappucino', photo:null },
+    { id:'coffee-cream', name:'Coffee Cream', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\ncoffee cream', photo:null },
+    { id:'egg-coffee-cream', name:'Egg Coffee Cream', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\negg coffee cream', photo:null },
+    { id:'salted-coffee-cream', name:'Salted Coffee Cream', desc:'', price:1.5, category:'Coffee', imgLabel:'photo:\nsalted coffee cream', photo:null },
+    // Matcha
+    { id:'pure-coconut-matte', name:'Pure Coconut Matte', desc:'', price:1.75, category:'Matcha', imgLabel:'photo:\npure coconut matte', photo:null },
+    { id:'matcha-strawberry', name:'Matcha Strawberry', desc:'', price:1.75, category:'Matcha', imgLabel:'photo:\nmatcha strawberry', photo:null },
+    // Tea & Refreshment
+    { id:'honey-lemon-tea', name:'Honey Lemon Tea', desc:'', price:1.5, category:'Tea & Refreshment', imgLabel:'photo:\nhoney lemon tea', photo:null },
+    { id:'soda-yuzu', name:'Soda Yuzu', desc:'', price:1.5, category:'Tea & Refreshment', imgLabel:'photo:\nsoda yuzu', photo:null },
+    { id:'fresh-passion-juice', name:'Fresh Passion Juice', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nfresh passion juice', photo:null },
+    { id:'passion-tea', name:'Passion Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\npassion tea', photo:null },
+    { id:'passion-milk', name:'Passion Milk', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\npassion milk', photo:null },
+    { id:'red-lemon-tea', name:'Red Lemon Tea', desc:'', price:1.0, category:'Tea & Refreshment', imgLabel:'photo:\nred lemon tea', photo:null },
+    { id:'green-lemon-tea', name:'Green Lemon Tea', desc:'', price:1.0, category:'Tea & Refreshment', imgLabel:'photo:\ngreen lemon tea', photo:null },
+    { id:'red-milk-tea', name:'Red Milk Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nred milk tea', photo:null },
+    { id:'green-milk-tea', name:'Green Milk Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\ngreen milk tea', photo:null },
+    { id:'peach-tea', name:'Peach Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\npeach tea', photo:null },
+    { id:'guava-tea', name:'Guava Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nguava tea', photo:null },
+    { id:'lychee-tea', name:'Lychee Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nlychee tea', photo:null },
+    { id:'blueberry-tea', name:'Blueberry Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nblueberry tea', photo:null },
+    { id:'plum-tea', name:'Plum Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nplum tea', photo:null },
+    { id:'strawberry-tea', name:'Strawberry Tea', desc:'', price:1.25, category:'Tea & Refreshment', imgLabel:'photo:\nstrawberry tea', photo:null },
   ];
-  var CATEGORIES = ['Coffee','Tea','Pastries','Food'];
+  var CATEGORIES = ['Coffee','Matcha','Tea & Refreshment'];
+  var DRINK_CATEGORIES = ['Coffee','Matcha','Tea & Refreshment'];
   var SUGAR_OPTS = ['0%','25%','50%','75%','100%'];
   var ADDON_OPTS = [{ id:'extra', label:'Extra Shot', price:0.25 }];
   var STAMPS_NEEDED = 6;
@@ -419,7 +440,7 @@
 
   function renderItem(){
     var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
-    var isDrink = m.category === 'Coffee' || m.category === 'Tea';
+    var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
     var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
 
     var sugarHtml = isDrink ? (
@@ -459,7 +480,7 @@
       var e = state.cart[key];
       var m = MENU.find(function(x){ return x.id === e.id; });
       var unit = unitPrice(m, e.sugar, e.addons);
-      var sugarLabel = (m.category === 'Coffee' || m.category === 'Tea') ? (e.sugar + ' sugar') : null;
+      var sugarLabel = (DRINK_CATEGORIES.indexOf(m.category) !== -1) ? (e.sugar + ' sugar') : null;
       var addonLabels = e.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; });
       var detailParts = [sugarLabel].concat(addonLabels).filter(Boolean);
       return '' +
