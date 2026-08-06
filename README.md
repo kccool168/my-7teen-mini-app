@@ -1,3 +1,6 @@
+
+
+_Deployed live to Telegram — v2._
 # 7Teen Café Mini App — v2 (new design)
 
 This replaces the previous version with the updated design: category tabs, item
