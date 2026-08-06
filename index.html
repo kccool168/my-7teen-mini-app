@@ -100,7 +100,8 @@
   .empty-cart .t2{font-size:13px;margin-top:6px}
   .cart-list{padding:14px 16px 8px;display:flex;flex-direction:column;gap:10px}
   .cart-row{display:flex;align-items:center;gap:12px;padding:10px;background:var(--card);border-radius:16px;border:1px solid var(--border)}
-  .cart-row .thumb{width:52px;height:52px;border-radius:12px;flex-shrink:0;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 6px,#dceefa 6px,#dceefa 12px)}
+  .cart-row .thumb{width:52px;height:52px;border-radius:12px;flex-shrink:0;overflow:hidden;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 6px,#dceefa 6px,#dceefa 12px)}
+  .cart-row .thumb img{width:100%;height:100%;object-fit:cover;display:block}
   .cart-row .info{flex:1;min-width:0}
   .cart-row .info .nm{font-weight:700;font-size:14px}
   .cart-row .info .dt{font-size:11.5px;color:var(--text-soft2);margin-top:1px}
@@ -348,24 +349,6 @@
 
   var QR_ASSET = 'assets/khqr-v2.jpg';
 
-  function downloadQR(){
-    fetch(QR_ASSET).then(function(res){ return res.blob(); }).then(function(blob){
-      var blobUrl = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = '7Teen-Cafe-KHQR.jpg';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 5000);
-    }).catch(function(err){
-      console.error('QR download failed', err);
-      // Fallback: open the image directly so the user can long-press/save it.
-      if (tg && tg.openLink) tg.openLink(absUrl(QR_ASSET));
-      else window.open(QR_ASSET, '_blank');
-    });
-  }
-
   function shareQR(){
     fetch(QR_ASSET).then(function(res){ return res.blob(); }).then(function(blob){
       var file = new File([blob], '7Teen-Cafe-KHQR.jpg', { type: blob.type || 'image/jpeg' });
@@ -546,9 +529,10 @@
       var sugarLabel = (DRINK_CATEGORIES.indexOf(m.category) !== -1) ? (e.sugar + ' sugar') : null;
       var addonLabels = e.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; });
       var detailParts = [sugarLabel].concat(addonLabels).filter(Boolean);
+      var thumb = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '';
       return '' +
         '<div class="cart-row">' +
-          '<div class="thumb"></div>' +
+          '<div class="thumb">' + thumb + '</div>' +
           '<div class="info">' +
             '<div class="nm">' + esc(m.name) + '</div>' +
             (detailParts.length ? '<div class="dt">' + esc(detailParts.join(', ')) + '</div>' : '') +
@@ -596,8 +580,7 @@
         '<div class="t2">KHQR · 7Teen Café</div>' +
         '<div class="qr-box"><img src="' + QR_ASSET + '" alt="KHQR code"></div>' +
         '<div class="qr-actions">' +
-          '<div class="qbtn" id="qrDownloadBtn"><span>⬇️</span><span>Download QR</span></div>' +
-          '<div class="qbtn" id="qrShareBtn"><span>📤</span><span>Share QR</span></div>' +
+          '<div class="qbtn" id="qrShareBtn"><span>📤</span><span>Share QR to Pay with Canadia Bank</span></div>' +
         '</div>' +
         '<div class="due-lbl">Amount due</div>' +
         '<div class="due-val">$' + money(totals.total) + '</div>' +
@@ -794,8 +777,6 @@
     var rewardsBtn = document.getElementById('rewardsBtn');
     if (rewardsBtn) rewardsBtn.addEventListener('click', goRewards);
 
-    var qrDownloadBtn = document.getElementById('qrDownloadBtn');
-    if (qrDownloadBtn) qrDownloadBtn.addEventListener('click', downloadQR);
     var qrShareBtn = document.getElementById('qrShareBtn');
     if (qrShareBtn) qrShareBtn.addEventListener('click', shareQR);
   }
