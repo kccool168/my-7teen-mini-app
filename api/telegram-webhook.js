@@ -170,7 +170,7 @@ async function handleMessage(message, BOT_TOKEN) {
   if (candidates.length === 1) {
     await resolveOrderStatus(
       client, BOT_TOKEN, candidates[0].orderCode, 'paid', 'Bank notification (auto)',
-      { bankRef: parsed.ref },
+      { bankRef: parsed.ref, bankPayer: parsed.payer },
     );
     console.log(`Auto-confirmed order ${candidates[0].orderCode} from bank ref ${parsed.ref}`);
   } else if (candidates.length > 1) {

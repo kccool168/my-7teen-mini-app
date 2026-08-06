@@ -41,9 +41,13 @@ export function itemLines(order) {
 
 function statusLine(order) {
   if (order.status === 'paid') {
-    const suffix = order.bankRef
-      ? ` — auto-confirmed via bank alert (Ref: ${esc(order.bankRef)})`
-      : (order.confirmedByName ? ' — confirmed by ' + esc(order.confirmedByName) : '');
+    let suffix = '';
+    if (order.bankRef) {
+      const payerPart = order.bankPayer ? `, from ${esc(order.bankPayer)}` : '';
+      suffix = ` — auto-confirmed via bank alert (Ref: ${esc(order.bankRef)}${payerPart})`;
+    } else if (order.confirmedByName) {
+      suffix = ' — confirmed by ' + esc(order.confirmedByName);
+    }
     return `💰 Status: ✅ Paid${suffix}`;
   }
   if (order.status === 'unpaid') {

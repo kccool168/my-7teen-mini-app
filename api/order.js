@@ -161,7 +161,7 @@ export default async function handler(req, res) {
       try {
         const client = redisClient || (await getClient());
         const orderRecord = Object.assign({}, resolvedOrder, {
-          chatId: GROUP_CHAT_ID, messageId, confirmedByName: null, confirmedAt: null, bankRef: null,
+          chatId: GROUP_CHAT_ID, messageId, confirmedByName: null, confirmedAt: null, bankRef: null, bankPayer: null,
         });
         await client.set(`order:${resolvedOrder.orderCode}`, JSON.stringify(orderRecord), { EX: ORDER_TTL_SECONDS });
         // Index this order as "still awaiting payment" so the bank-notification
