@@ -116,6 +116,12 @@
   .toggle .dot{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:9px;background:#fff;transition:left .15s}
   .toggle.on .dot{left:18px}
 
+  .remark-box{margin:12px 16px 4px}
+  .remark-box .remark-label{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--text-soft);margin-bottom:6px}
+  .remark-box .remark-label .count{font-weight:600;color:var(--text-soft2)}
+  .remark-box textarea{width:100%;min-height:56px;resize:none;border:1px solid var(--border);border-radius:14px;padding:10px 12px;font-family:inherit;font-size:13.5px;color:var(--text);background:var(--card)}
+  .remark-box textarea:focus{outline:none;border-color:var(--accent)}
+
   .totals{padding:14px 16px 130px;display:flex;flex-direction:column;gap:6px}
   .totals .row{display:flex;justify-content:space-between;font-size:13px;color:rgba(43,36,32,.6)}
   .totals .row.discount{color:var(--accent)}
@@ -247,6 +253,7 @@
     sugar: '100%', addons: [],
     redeemFreeCup: false, stamps: 0, freeCups: 0, orderCode: null, orderStatus: 'received',
     showReceiptNotice: false, rewardMsg: null,
+    remark: '', lastCupPrice: null,
   };
 
   function setState(patch){
@@ -273,7 +280,14 @@
         var m = MENU.find(function(x){ return x.id === entry.id; });
         return unitPrice(m, entry.sugar, entry.addons);
       });
-      if (prices.length) discount = Math.max.apply(null, prices);
+      if (prices.length){
+        var rawDiscount = Math.max.apply(null, prices);
+        // A redeemed free cup is capped to the price of the customer's last
+        // order (server-enforced too), so they can't earn stamps on cheap
+        // drinks and redeem a pricier one for free.
+        var cap = (typeof state.lastCupPrice === 'number' && !isNaN(state.lastCupPrice)) ? state.lastCupPrice : rawDiscount;
+        discount = Math.min(rawDiscount, cap);
+      }
     }
     return { subtotal: subtotal, discount: discount, total: Math.max(0, subtotal - discount) };
   }
@@ -333,6 +347,7 @@
     var code = '7T-' + Math.floor(400 + Math.random() * 599);
     var cart = state.cart;
     var spentFreeCup = state.redeemFreeCup && state.freeCups > 0 ? 1 : 0;
+    var remark = (state.remark || '').trim().slice(0, 50);
 
     var orderPayload = {
       orderCode: code,
@@ -347,6 +362,7 @@
       }),
       subtotal: totals.subtotal, discount: totals.discount, total: totals.total,
       redeemedFreeCup: !!spentFreeCup,
+      remark: remark,
       customer: tgUser ? {
         id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username,
       } : null,
@@ -359,7 +375,7 @@
     // /api/order response comes back (see sendOrder below).
     setState({
       screen: 'confirm', orderCode: code, orderStatus: 'received', cart: {},
-      redeemFreeCup: false, showReceiptNotice: false,
+      redeemFreeCup: false, showReceiptNotice: false, remark: '',
     });
 
     sendOrder(orderPayload);
@@ -379,6 +395,7 @@
         var patch = { showReceiptNotice: !!data.customerNotified };
         if (typeof data.stamps === 'number') patch.stamps = data.stamps;
         if (typeof data.freeCups === 'number') patch.freeCups = data.freeCups;
+        if (typeof data.lastCupPrice === 'number' && !isNaN(data.lastCupPrice)) patch.lastCupPrice = data.lastCupPrice;
         return patch;
       });
     }).catch(function(err){ console.error('Order notify failed', err); });
@@ -389,7 +406,11 @@
     fetch('/api/stamps?userId=' + encodeURIComponent(tgUser.id))
       .then(function(res){ return res.json(); })
       .then(function(data){
-        if (data && data.ok) setState({ stamps: data.stamps, freeCups: data.freeCups });
+        if (data && data.ok){
+          var patch = { stamps: data.stamps, freeCups: data.freeCups };
+          if (typeof data.lastCupPrice === 'number' && !isNaN(data.lastCupPrice)) patch.lastCupPrice = data.lastCupPrice;
+          setState(patch);
+        }
       })
       .catch(function(err){ console.error('Failed to load stamps', err); });
   }
@@ -497,8 +518,10 @@
 
     var totals = computeTotal();
     var canRedeem = state.freeCups > 0 && keys.length > 0;
+    var redeemCapNote = (typeof state.lastCupPrice === 'number' && !isNaN(state.lastCupPrice))
+      ? ' (up to $' + money(state.lastCupPrice) + ')' : '';
     var redeemHtml = canRedeem ? (
-      '<div class="redeem-row" id="redeemToggle"><div class="lbl">Use free cup reward</div>' +
+      '<div class="redeem-row" id="redeemToggle"><div class="lbl">Use free cup reward' + esc(redeemCapNote) + '</div>' +
       '<div class="toggle' + (state.redeemFreeCup ? ' on' : '') + '"><div class="dot"></div></div></div>'
     ) : '';
 
@@ -506,9 +529,16 @@
       '<div class="row discount"><span>Free cup reward</span><span>–$' + money(totals.discount) + '</span></div>'
     ) : '';
 
+    var remarkHtml = '' +
+      '<div class="remark-box">' +
+        '<div class="remark-label"><span>Order remark</span><span class="count" id="remarkCount">' + state.remark.length + '/50</span></div>' +
+        '<textarea id="remarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.remark) + '</textarea>' +
+      '</div>';
+
     return '' +
       '<div class="cart-list">' + rowsHtml + '</div>' +
       redeemHtml +
+      remarkHtml +
       '<div class="totals">' +
         '<div class="row"><span>Subtotal</span><span>$' + money(totals.subtotal) + '</span></div>' +
         discountRow +
@@ -701,6 +731,19 @@
 
     var redeemToggle = document.getElementById('redeemToggle');
     if (redeemToggle) redeemToggle.addEventListener('click', toggleRedeem);
+
+    // Update state.remark directly (no setState/full re-render) so the
+    // textarea keeps focus and cursor position while typing.
+    var remarkInput = document.getElementById('remarkInput');
+    if (remarkInput){
+      remarkInput.addEventListener('input', function(e){
+        var v = e.target.value.slice(0, 50);
+        if (v !== e.target.value) e.target.value = v;
+        state.remark = v;
+        var counter = document.getElementById('remarkCount');
+        if (counter) counter.textContent = v.length + '/50';
+      });
+    }
 
     var rewardsBtn = document.getElementById('rewardsBtn');
     if (rewardsBtn) rewardsBtn.addEventListener('click', goRewards);
