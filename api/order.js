@@ -118,6 +118,20 @@ function money(n) {
   return Number(n || 0).toFixed(2);
 }
 
+// Formats a timestamp as "DD/MM/YYYY - HH:MM" in Cambodia local time (ICT,
+// UTC+7), regardless of what timezone the server itself runs in.
+function formatTimestamp(iso) {
+  const date = iso ? new Date(iso) : new Date();
+  if (isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Phnom_Penh',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(date);
+  const get = (type) => (parts.find((p) => p.type === type) || {}).value || '';
+  return `${get('day')}/${get('month')}/${get('year')} - ${get('hour')}:${get('minute')}`;
+}
+
 function itemLines(order) {
   return order.items.map((item) => {
     const details = [];
@@ -144,7 +158,7 @@ function formatGroupMessage(order) {
     const handle = order.customer.username ? ` (@${esc(order.customer.username)})` : '';
     lines.push(`👤 ${esc(name) || 'Customer'}${handle}`);
   }
-  if (order.timestamp) lines.push(`🕐 ${esc(order.timestamp)}`);
+  lines.push(`🕐 ${esc(formatTimestamp(order.timestamp))}`);
 
   return lines.join('\n');
 }
@@ -153,6 +167,7 @@ function formatReceiptMessage(order, stamps, freeCups) {
   const lines = [];
   lines.push(`✅ <b>Order confirmed!</b>`);
   lines.push(`Pickup code: <b>${esc(order.orderCode || '')}</b>`);
+  lines.push(`🕐 ${esc(formatTimestamp(order.timestamp))}`);
   lines.push('');
   lines.push(...itemLines(order));
   lines.push('');
