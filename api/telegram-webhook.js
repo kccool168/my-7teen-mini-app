@@ -1,15 +1,32 @@
 // Vercel serverless function: POST /api/telegram-webhook
 //
-// Telegram calls this whenever an update happens on the bot — we only care
-// about callback_query updates, which fire when staff tap the "Mark Paid"
-// or "Not Received" inline button under an order report in the group chat.
+// Telegram calls this for every update the bot is subscribed to. We handle
+// two kinds:
 //
-// Flow: look up the order in Redis by its order code -> update its status
-// -> edit the original group message in place to show the new status (and
-// who confirmed it) -> acknowledge the tap so Telegram clears the button's
-// loading spinner.
+//  1. callback_query — staff tapped "Mark Paid" / "Not Received" under an
+//     order report in the staff group.
+//  2. message — a plain message arrived in some group the bot belongs to.
+//     We only act on it if it's from the designated bank-notification group
+//     (BANK_NOTIFY_CHAT_ID) and looks like a Canadia Bank payment alert; if
+//     it matches exactly one still-open order by amount and time, that
+//     order is auto-confirmed the same way a manual tap would.
+//
+// Both paths funnel through resolveOrderStatus(), which updates Redis and
+// edits the original group message in place.
 import getClient from './_redis.js';
 import { formatGroupMessage, groupKeyboard } from './_format.js';
+
+const MONTHS = {
+  JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
+  JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
+};
+
+// How far apart an order's creation time and a bank alert's timestamp can
+// be and still be considered the same payment.
+const MATCH_WINDOW_MS = 20 * 60 * 1000;
+// How much the converted amount is allowed to drift from the order total
+// (covers small exchange-rate movement day to day).
+const MATCH_TOLERANCE_RATIO = 0.03;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -21,7 +38,8 @@ export default async function handler(req, res) {
   const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
   // Reject anything that doesn't present the secret Telegram was configured
-  // to send, so random requests to this URL can't forge button presses.
+  // to send, so random requests to this URL can't forge button presses or
+  // fake bank alerts.
   if (WEBHOOK_SECRET) {
     const headerSecret = req.headers['x-telegram-bot-api-secret-token'];
     if (headerSecret !== WEBHOOK_SECRET) {
@@ -36,25 +54,25 @@ export default async function handler(req, res) {
     return res.status(400).end();
   }
 
-  const cq = update && update.callback_query;
-  if (!cq) {
-    // Some other update type we don't act on — acknowledge so Telegram
-    // doesn't keep retrying delivery.
-    return res.status(200).end();
-  }
-
   if (!BOT_TOKEN) {
     console.error('Missing BOT_TOKEN environment variable');
     return res.status(200).end();
   }
 
   try {
-    await handleCallback(cq, BOT_TOKEN);
+    if (update && update.callback_query) {
+      await handleCallback(update.callback_query, BOT_TOKEN);
+    } else if (update && update.message) {
+      await handleMessage(update.message, BOT_TOKEN);
+    }
+    // Any other update type: nothing to do, just acknowledge.
   } catch (err) {
-    console.error('Callback handling failed', err);
+    console.error('Webhook handling failed', err);
   }
   return res.status(200).end();
 }
+
+// ---- Manual "Mark Paid" / "Not Received" button taps ----
 
 async function handleCallback(cq, BOT_TOKEN) {
   const data = String(cq.data || '');
@@ -74,53 +92,14 @@ async function handleCallback(cq, BOT_TOKEN) {
     return answerCallback(BOT_TOKEN, cq.id, 'Could not reach the database — try again shortly.');
   }
 
-  const key = `order:${orderCode}`;
-  const raw = await client.get(key);
-  if (!raw) {
-    return answerCallback(BOT_TOKEN, cq.id, 'Order not found (it may have expired after 14 days).');
-  }
-
-  let order;
-  try {
-    order = JSON.parse(raw);
-  } catch (err) {
-    console.error('Corrupt order record', err);
-    return answerCallback(BOT_TOKEN, cq.id, 'Order record unreadable.');
-  }
-
-  const newStatus = action === 'paid' ? 'paid' : 'unpaid';
   const confirmedByName = [cq.from && cq.from.first_name, cq.from && cq.from.last_name]
     .filter(Boolean).join(' ') || (cq.from && cq.from.username) || 'Staff';
 
-  order.status = newStatus;
-  order.confirmedByName = confirmedByName;
-  order.confirmedAt = new Date().toISOString();
-
-  // Preserve the remaining TTL rather than resetting it, so a status flip
-  // doesn't keep old orders alive indefinitely.
-  const ttl = await client.ttl(key);
-  const setOpts = ttl && ttl > 0 ? { EX: ttl } : {};
-  await client.set(key, JSON.stringify(order), setOpts);
-
-  const newText = formatGroupMessage(order);
-  const chatId = (cq.message && cq.message.chat && cq.message.chat.id) || order.chatId;
-  const messageId = (cq.message && cq.message.message_id) || order.messageId;
-
-  if (chatId != null && messageId != null) {
-    try {
-      const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId, message_id: messageId, text: newText, parse_mode: 'HTML',
-          reply_markup: groupKeyboard(orderCode, newStatus),
-        }),
-      });
-      const editData = await editRes.json();
-      if (!editRes.ok || !editData.ok) console.error('editMessageText failed', editData);
-    } catch (err) {
-      console.error('editMessageText error', err);
-    }
+  const newStatus = action === 'paid' ? 'paid' : 'unpaid';
+  // A manual tap always overrides any prior auto-confirmation.
+  const order = await resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, confirmedByName, { bankRef: null });
+  if (!order) {
+    return answerCallback(BOT_TOKEN, cq.id, 'Order not found (it may have expired after 14 days).');
   }
 
   return answerCallback(
@@ -139,4 +118,156 @@ async function answerCallback(BOT_TOKEN, callbackQueryId, text) {
   } catch (err) {
     console.error('answerCallbackQuery failed', err);
   }
+}
+
+// ---- Bank notification group messages ----
+
+async function handleMessage(message, BOT_TOKEN) {
+  const BANK_CHAT_ID = process.env.BANK_NOTIFY_CHAT_ID;
+  const chatId = message.chat && message.chat.id;
+
+  if (!BANK_CHAT_ID) {
+    // Setup phase: BANK_NOTIFY_CHAT_ID hasn't been configured yet. Log just
+    // enough to identify the right group (chat id + title), and nothing
+    // else, so it can be found in Vercel's function logs and set as the
+    // env var. Once BANK_NOTIFY_CHAT_ID is set this branch never runs.
+    console.log('telegram-webhook: message seen before BANK_NOTIFY_CHAT_ID is configured — chat.id=' + chatId + ' chat.title=' + JSON.stringify(message.chat && message.chat.title));
+    return;
+  }
+
+  if (String(chatId) !== String(BANK_CHAT_ID)) return; // Not the bank group — ignore silently.
+
+  const text = message.text || message.caption || '';
+  const parsed = parseBankNotification(text);
+  if (!parsed) return; // Not a recognizable payment alert.
+
+  const usdAmount = toUSD(parsed.amount, parsed.currency);
+
+  let client;
+  try {
+    client = await getClient();
+  } catch (err) {
+    console.error('Redis unavailable for bank notification matching', err);
+    return;
+  }
+
+  const pendingCodes = await client.sMembers('pending_orders');
+  const candidates = [];
+  for (const code of pendingCodes) {
+    const raw = await client.get(`order:${code}`);
+    if (!raw) { await client.sRem('pending_orders', code); continue; }
+    let order;
+    try { order = JSON.parse(raw); } catch (e) { continue; }
+    if (order.status !== 'pending') { await client.sRem('pending_orders', code); continue; }
+
+    const orderTime = new Date(order.timestamp).getTime();
+    const withinTime = Math.abs(parsed.dateUTC.getTime() - orderTime) <= MATCH_WINDOW_MS;
+    if (withinTime && amountsMatch(usdAmount, Number(order.total))) {
+      candidates.push(order);
+    }
+  }
+
+  if (candidates.length === 1) {
+    await resolveOrderStatus(
+      client, BOT_TOKEN, candidates[0].orderCode, 'paid', 'Bank notification (auto)',
+      { bankRef: parsed.ref },
+    );
+    console.log(`Auto-confirmed order ${candidates[0].orderCode} from bank ref ${parsed.ref}`);
+  } else if (candidates.length > 1) {
+    console.log(`Bank alert (Ref ${parsed.ref}, $${usdAmount.toFixed(2)}) matched ${candidates.length} pending orders — ambiguous, left for manual confirmation.`);
+  }
+  // Zero matches: likely already confirmed manually, or an unrelated
+  // payment (e.g. supplier transfer) — nothing to do.
+}
+
+// Parses Canadia Bank's merchant payment notification text, e.g.:
+// "6,000.00 KHR was paid to your account : 7TEEN CAFE 1673611000 on 06 AUG
+//  2026 at 08:29:50 from Canadia Bank Acc : TANG SEAKMENG 001XXXXXXXX4868
+//  with Ref: FT262180117X."
+function parseBankNotification(text) {
+  const re = /([\d,]+\.\d{2})\s*(KHR|USD)\s+was paid to your account\s*:\s*(.+?)\s+on\s+(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})\s+at\s+(\d{2}):(\d{2}):(\d{2})\s+from\s+.+?Acc\s*:\s*(.+?)\s+with\s+Ref\s*:\s*([A-Za-z0-9]+)\.?/i;
+  const m = text.match(re);
+  if (!m) return null;
+
+  const [, amountStr, currency, account, day, monStr, year, hh, mm, ss, payer, ref] = m;
+  const monthIdx = MONTHS[monStr.toUpperCase()];
+  if (monthIdx == null) return null;
+
+  // The bank's timestamp is Cambodia local time (ICT, UTC+7).
+  const dateUTC = new Date(Date.UTC(
+    parseInt(year, 10), monthIdx, parseInt(day, 10),
+    parseInt(hh, 10) - 7, parseInt(mm, 10), parseInt(ss, 10),
+  ));
+  if (isNaN(dateUTC.getTime())) return null;
+
+  return {
+    amount: parseFloat(amountStr.replace(/,/g, '')),
+    currency: currency.toUpperCase(),
+    account: account.trim(),
+    payer: payer.trim(),
+    ref: ref.trim(),
+    dateUTC,
+  };
+}
+
+function toUSD(amount, currency) {
+  if (currency === 'USD') return amount;
+  const rate = parseFloat(process.env.KHR_USD_RATE || '4000') || 4000;
+  return amount / rate;
+}
+
+function amountsMatch(a, b) {
+  const diff = Math.abs(a - b);
+  const tolerance = Math.max(0.02, b * MATCH_TOLERANCE_RATIO);
+  return diff <= tolerance;
+}
+
+// ---- Shared: apply a status change and edit the group message ----
+
+async function resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, confirmedByName, extra) {
+  const key = `order:${orderCode}`;
+  const raw = await client.get(key);
+  if (!raw) return null;
+
+  let order;
+  try {
+    order = JSON.parse(raw);
+  } catch (err) {
+    console.error('Corrupt order record', orderCode, err);
+    return null;
+  }
+
+  order.status = newStatus;
+  order.confirmedByName = confirmedByName;
+  order.confirmedAt = new Date().toISOString();
+  if (extra) Object.assign(order, extra);
+
+  // Preserve the remaining TTL rather than resetting it.
+  const ttl = await client.ttl(key);
+  const setOpts = ttl && ttl > 0 ? { EX: ttl } : {};
+  await client.set(key, JSON.stringify(order), setOpts);
+  await client.sRem('pending_orders', orderCode);
+
+  const newText = formatGroupMessage(order);
+  const chatId = order.chatId;
+  const messageId = order.messageId;
+
+  if (chatId != null && messageId != null) {
+    try {
+      const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId, message_id: messageId, text: newText, parse_mode: 'HTML',
+          reply_markup: groupKeyboard(orderCode, newStatus),
+        }),
+      });
+      const editData = await editRes.json();
+      if (!editRes.ok || !editData.ok) console.error('editMessageText failed', editData);
+    } catch (err) {
+      console.error('editMessageText error', err);
+    }
+  }
+
+  return order;
 }

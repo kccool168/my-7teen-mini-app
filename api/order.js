@@ -161,9 +161,13 @@ export default async function handler(req, res) {
       try {
         const client = redisClient || (await getClient());
         const orderRecord = Object.assign({}, resolvedOrder, {
-          chatId: GROUP_CHAT_ID, messageId, confirmedByName: null, confirmedAt: null,
+          chatId: GROUP_CHAT_ID, messageId, confirmedByName: null, confirmedAt: null, bankRef: null,
         });
         await client.set(`order:${resolvedOrder.orderCode}`, JSON.stringify(orderRecord), { EX: ORDER_TTL_SECONDS });
+        // Index this order as "still awaiting payment" so the bank-notification
+        // matcher (api/telegram-webhook.js) can scan only open orders instead
+        // of every order ever placed. Entries are removed once resolved.
+        await client.sAdd('pending_orders', resolvedOrder.orderCode);
       } catch (err) {
         console.error('Order status persistence failed (buttons will not work for this order)', err);
       }

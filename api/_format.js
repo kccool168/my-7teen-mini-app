@@ -41,7 +41,10 @@ export function itemLines(order) {
 
 function statusLine(order) {
   if (order.status === 'paid') {
-    return `💰 Status: ✅ Paid${order.confirmedByName ? ' — confirmed by ' + esc(order.confirmedByName) : ''}`;
+    const suffix = order.bankRef
+      ? ` — auto-confirmed via bank alert (Ref: ${esc(order.bankRef)})`
+      : (order.confirmedByName ? ' — confirmed by ' + esc(order.confirmedByName) : '');
+    return `💰 Status: ✅ Paid${suffix}`;
   }
   if (order.status === 'unpaid') {
     return `💰 Status: ❌ Not received${order.confirmedByName ? ' — marked by ' + esc(order.confirmedByName) : ''}`;
