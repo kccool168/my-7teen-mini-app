@@ -10,10 +10,15 @@
 //     redemptions stay accurate.
 //  3. Sends an order receipt directly to the customer's Telegram chat.
 //  4. Sends the shop's order report (including any customer remark) to the
-//     staff Telegram group.
+//     staff Telegram group, with "Mark Paid" / "Not Received" buttons.
+//     The order is stored in Redis (14-day TTL) so those button taps —
+//     handled by api/telegram-webhook.js — can look it up and edit this
+//     same message with the confirmed status.
 import getClient from './_redis.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard } from './_format.js';
 
 const STAMPS_NEEDED = 6;
+const ORDER_TTL_SECONDS = 60 * 60 * 24 * 14; // 14 days
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -52,11 +57,13 @@ export default async function handler(req, res) {
   let appliedTotal = Number(order.subtotal) || 0;
   let lastCupPrice = null;
   let redeemApplied = false;
+  let redisClient = null;
   const userId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
 
   if (userId) {
     try {
       const client = await getClient();
+      redisClient = client;
       const totalKey = `user:${userId}:total`;
       const usedKey = `user:${userId}:used`;
       const lastPriceKey = `user:${userId}:lastPrice`;
@@ -108,13 +115,14 @@ export default async function handler(req, res) {
 
   const resolvedOrder = Object.assign({}, order, {
     discount: appliedDiscount, total: appliedTotal, remark, redeemedFreeCup: redeemApplied,
+    status: 'pending', confirmedByName: null,
   });
 
   // ---- 2. Send receipt to the customer ----
   let customerNotified = false;
   if (userId) {
     try {
-      const receiptMessage = formatReceiptMessage(resolvedOrder, stamps, freeCups);
+      const receiptMessage = formatReceiptMessage(resolvedOrder, stamps, freeCups, STAMPS_NEEDED);
       const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -128,20 +136,37 @@ export default async function handler(req, res) {
     }
   }
 
-  // ---- 3. Send report to the staff group ----
+  // ---- 3. Send report to the staff group, with Mark Paid / Not Received
+  //         buttons, and remember it in Redis so the webhook can edit it. ----
   let groupNotified = false;
   try {
     const groupMessage = formatGroupMessage(resolvedOrder);
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: GROUP_CHAT_ID, text: groupMessage, parse_mode: 'HTML' }),
+      body: JSON.stringify({
+        chat_id: GROUP_CHAT_ID, text: groupMessage, parse_mode: 'HTML',
+        reply_markup: groupKeyboard(resolvedOrder.orderCode, 'pending'),
+      }),
     });
     const tgData = await tgRes.json();
     groupNotified = !!(tgRes.ok && tgData.ok);
     if (!groupNotified) {
       console.error('Group notify failed', tgData);
       return res.status(502).json({ ok: false, error: 'Failed to notify group' });
+    }
+
+    const messageId = tgData.result && tgData.result.message_id;
+    if (messageId != null && resolvedOrder.orderCode) {
+      try {
+        const client = redisClient || (await getClient());
+        const orderRecord = Object.assign({}, resolvedOrder, {
+          chatId: GROUP_CHAT_ID, messageId, confirmedByName: null, confirmedAt: null,
+        });
+        await client.set(`order:${resolvedOrder.orderCode}`, JSON.stringify(orderRecord), { EX: ORDER_TTL_SECONDS });
+      } catch (err) {
+        console.error('Order status persistence failed (buttons will not work for this order)', err);
+      }
     }
   } catch (err) {
     console.error('Group notify error', err);
@@ -152,85 +177,4 @@ export default async function handler(req, res) {
     ok: true, stamps, freeCups, customerNotified, groupNotified,
     discount: appliedDiscount, total: appliedTotal, lastCupPrice,
   });
-}
-
-function esc(s) {
-  return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function money(n) {
-  return Number(n || 0).toFixed(2);
-}
-
-// Formats a timestamp as "DD/MM/YYYY - HH:MM" in Cambodia local time (ICT,
-// UTC+7), regardless of what timezone the server itself runs in.
-function formatTimestamp(iso) {
-  const date = iso ? new Date(iso) : new Date();
-  if (isNaN(date.getTime())) return '';
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Phnom_Penh',
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: false,
-  }).formatToParts(date);
-  const get = (type) => (parts.find((p) => p.type === type) || {}).value || '';
-  return `${get('day')}/${get('month')}/${get('year')} - ${get('hour')}:${get('minute')}`;
-}
-
-function itemLines(order) {
-  return order.items.map((item) => {
-    const details = [];
-    if (item.sugar) details.push(`${esc(item.sugar)} sugar`);
-    if (item.addons && item.addons.length) details.push(item.addons.map(esc).join(', '));
-    const detailStr = details.length ? ` (${details.join(', ')})` : '';
-    return `• ${item.qty}× ${esc(item.name)}${detailStr} — $${money(item.unitPrice * item.qty)}`;
-  });
-}
-
-function formatGroupMessage(order) {
-  const lines = [];
-  lines.push(`🧾 <b>New order — ${esc(order.orderCode || '')}</b>`);
-  lines.push('');
-  lines.push(...itemLines(order));
-  lines.push('');
-  lines.push(`Subtotal: $${money(order.subtotal)}`);
-  if (order.redeemedFreeCup && order.discount) lines.push(`Free cup reward: −$${money(order.discount)}`);
-  lines.push(`<b>Total: $${money(order.total)}</b>`);
-  lines.push('');
-
-  if (order.customer) {
-    const name = [order.customer.firstName, order.customer.lastName].filter(Boolean).join(' ');
-    const handle = order.customer.username ? ` (@${esc(order.customer.username)})` : '';
-    lines.push(`👤 ${esc(name) || 'Customer'}${handle}`);
-  }
-  if (order.remark) lines.push(`📝 Remark: ${esc(order.remark)}`);
-  lines.push(`🕐 ${esc(formatTimestamp(order.timestamp))}`);
-
-  return lines.join('\n');
-}
-
-function formatReceiptMessage(order, stamps, freeCups) {
-  const lines = [];
-  lines.push(`✅ <b>Order confirmed!</b>`);
-  lines.push(`Pickup code: <b>${esc(order.orderCode || '')}</b>`);
-  lines.push(`🕐 ${esc(formatTimestamp(order.timestamp))}`);
-  lines.push('');
-  lines.push(...itemLines(order));
-  lines.push('');
-  lines.push(`Subtotal: $${money(order.subtotal)}`);
-  if (order.redeemedFreeCup && order.discount) lines.push(`Free cup reward: −$${money(order.discount)}`);
-  lines.push(`<b>Total: $${money(order.total)}</b>`);
-  lines.push('');
-
-  if (freeCups > 0) {
-    lines.push(`☕ Loyalty: ${stamps}/${STAMPS_NEEDED} stamps — ${freeCups} free cup${freeCups === 1 ? '' : 's'} ready to redeem!`);
-  } else {
-    lines.push(`☕ Loyalty: ${stamps}/${STAMPS_NEEDED} stamps`);
-  }
-  lines.push('');
-  lines.push('Thank you for ordering from 7Teen Café! 💙');
-
-  return lines.join('\n');
 }
