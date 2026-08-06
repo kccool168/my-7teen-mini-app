@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>7Teen Café</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FBF1E1;
+    --card:#FFFDF8;
+    --text:#2B2420;
+    --text-soft:rgba(43,36,32,.55);
+    --text-soft2:rgba(43,36,32,.5);
+    --border:rgba(43,36,32,.06);
+    --accent:#1C7FC1;
+    --accent-dark:#145E90;
+    --chip-bg:#F1EAD9;
+    --chip-text:#5A4E3F;
+    --info-bg:#E7F2FA;
+    --info-text:#145E90;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);font-family:"Nunito",system-ui,sans-serif;color:var(--text);height:100%}
+  body{-webkit-tap-highlight-color:transparent}
+  a{color:var(--accent)}
+  ::-webkit-scrollbar{display:none}
+  @keyframes popIn{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
+  @keyframes fadeUp{0%{transform:translateY(8px);opacity:0}100%{transform:translateY(0);opacity:1}}
+
+  #app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;position:relative}
+
+  /* Header */
+  #header{flex-shrink:0;height:52px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;position:sticky;top:0;z-index:5}
+  #header .back-btn{width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text);cursor:pointer;visibility:hidden}
+  #header .back-btn.show{visibility:visible}
+  #header .back-btn:active{background:rgba(43,36,32,.1)}
+  #header .title{position:absolute;left:0;right:0;text-align:center;font-weight:800;font-size:16px;letter-spacing:-.2px;pointer-events:none}
+  #header .close-btn{margin-left:auto;width:32px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:16px;background:rgba(43,36,32,.06);cursor:pointer;position:relative;z-index:6;visibility:hidden}
+  #header .close-btn.show{visibility:visible}
+
+  /* Content */
+  #content{flex:1;overflow-y:auto;position:relative;padding-bottom:24px}
+
+  /* Home */
+  .home-top{padding:16px 16px 8px;display:flex;align-items:center;gap:10px}
+  .home-top img.logo{width:40px;height:40px;border-radius:20px;flex-shrink:0;object-fit:cover}
+  .home-top .greet{flex:1;min-width:0}
+  .home-top .greet .hey{font-size:13px;color:var(--text-soft);font-weight:600}
+  .home-top .greet .q{font-size:17px;font-weight:800}
+  .stamp-badge{flex-shrink:0;display:flex;align-items:center;gap:5px;background:var(--info-bg);border-radius:20px;padding:7px 12px;cursor:pointer}
+  .stamp-badge:active{background:#d9ecf9}
+  .stamp-badge .n{font-size:13px;font-weight:800;color:var(--info-text)}
+
+  .cat-row{padding:6px 16px 12px;display:flex;gap:8px;overflow-x:auto}
+  .cat-chip{flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;background:var(--chip-bg);color:var(--chip-text)}
+  .cat-chip.active{background:var(--accent);color:#fff}
+
+  .item-list{padding:4px 16px 100px;display:flex;flex-direction:column;gap:10px}
+  .item-card{display:flex;gap:12px;padding:10px;background:var(--card);border-radius:18px;border:1px solid var(--border)}
+  .item-thumb{width:72px;height:72px;border-radius:14px;flex-shrink:0;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 8px,#dceefa 8px,#dceefa 16px);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .item-thumb img{width:100%;height:100%;object-fit:cover}
+  .item-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line}
+  .item-info{flex:1;cursor:pointer;min-width:0}
+  .item-info .nm{font-weight:800;font-size:14.5px}
+  .item-info .ds{font-size:12px;color:var(--text-soft2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .item-info .pr{font-weight:800;font-size:14px;color:var(--accent);margin-top:4px}
+  .qty-pill{flex-shrink:0;display:flex;align-items:center;gap:8px;align-self:center;background:var(--accent);border-radius:14px;padding:4px}
+  .qty-pill .btn{width:22px;height:22px;border-radius:11px;background:rgba(255,255,255,.2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
+  .qty-pill .n{min-width:14px;text-align:center;color:#fff;font-weight:800;font-size:13px}
+  .add-btn{flex-shrink:0;align-self:center;width:30px;height:30px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;cursor:pointer}
+  .add-btn:active{background:var(--accent-dark)}
+
+  /* Item detail */
+  .item-hero{height:220px;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 10px,#dceefa 10px,#dceefa 20px);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .item-hero img{width:100%;height:100%;object-fit:cover}
+  .item-hero .lbl{font-family:ui-monospace,monospace;font-size:11px;color:#7fa8c4;white-space:pre-line;text-align:center}
+  .detail-body{padding:20px 20px 130px}
+  .detail-body .nm{font-weight:900;font-size:22px}
+  .detail-body .pr{font-weight:800;font-size:17px;color:var(--accent);margin-top:4px}
+  .detail-body .ds{font-size:14px;line-height:1.6;color:rgba(43,36,32,.65);margin-top:12px}
+  .sec-label{font-weight:700;font-size:14px;margin-bottom:8px;margin-top:24px}
+  .sugar-row{display:flex;gap:6px}
+  .sugar-chip{flex:1;text-align:center;padding:10px 4px;border-radius:14px;cursor:pointer;background:var(--chip-bg);color:var(--chip-text);font-size:12.5px;font-weight:700}
+  .sugar-chip.active{background:var(--accent);color:#fff}
+  .addon-row{display:flex;gap:8px;flex-wrap:wrap}
+  .addon-chip{padding:9px 14px;border-radius:14px;cursor:pointer;font-size:12.5px;font-weight:700;background:var(--chip-bg);color:var(--chip-text)}
+  .addon-chip.active{background:var(--accent);color:#fff}
+  .qty-row{display:flex;align-items:center;justify-content:space-between;margin-top:24px;padding:14px 16px;background:var(--card);border-radius:16px;border:1px solid var(--border)}
+  .qty-row .lbl{font-weight:700;font-size:14px}
+  .qty-row .ctrl{display:flex;align-items:center;gap:14px}
+  .qty-row .ctrl .btn{width:30px;height:30px;border-radius:15px;background:var(--info-bg);color:var(--info-text);display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
+  .qty-row .ctrl .n{min-width:16px;text-align:center;font-weight:800;font-size:15px}
+
+  /* Cart */
+  .empty-cart{padding:80px 30px;text-align:center;color:var(--text-soft2)}
+  .empty-cart .t1{font-size:15px;font-weight:700}
+  .empty-cart .t2{font-size:13px;margin-top:6px}
+  .cart-list{padding:14px 16px 8px;display:flex;flex-direction:column;gap:10px}
+  .cart-row{display:flex;align-items:center;gap:12px;padding:10px;background:var(--card);border-radius:16px;border:1px solid var(--border)}
+  .cart-row .thumb{width:52px;height:52px;border-radius:12px;flex-shrink:0;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 6px,#dceefa 6px,#dceefa 12px)}
+  .cart-row .info{flex:1;min-width:0}
+  .cart-row .info .nm{font-weight:700;font-size:14px}
+  .cart-row .info .dt{font-size:11.5px;color:var(--text-soft2);margin-top:1px}
+  .cart-row .info .pr{font-weight:800;font-size:13px;color:var(--accent);margin-top:2px}
+  .cart-row .ctrl{display:flex;align-items:center;gap:8px;background:var(--chip-bg);border-radius:14px;padding:4px}
+  .cart-row .ctrl .btn{width:22px;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
+  .cart-row .ctrl .n{min-width:14px;text-align:center;font-weight:800;font-size:13px}
+
+  .redeem-row{margin:4px 16px;padding:12px 14px;border-radius:14px;background:var(--info-bg);display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+  .redeem-row .lbl{font-size:13px;font-weight:700;color:var(--info-text)}
+  .toggle{width:38px;height:22px;border-radius:11px;background:rgba(43,36,32,.15);position:relative;flex-shrink:0;transition:background .15s}
+  .toggle.on{background:var(--accent)}
+  .toggle .dot{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:9px;background:#fff;transition:left .15s}
+  .toggle.on .dot{left:18px}
+
+  .totals{padding:14px 16px 130px;display:flex;flex-direction:column;gap:6px}
+  .totals .row{display:flex;justify-content:space-between;font-size:13px;color:rgba(43,36,32,.6)}
+  .totals .row.discount{color:var(--accent)}
+  .totals .row.total{font-size:16px;font-weight:800;color:var(--text);margin-top:6px;padding-top:10px;border-top:1px solid rgba(43,36,32,.1)}
+
+  /* KHQR payment */
+  .pay-wrap{padding:24px 24px 130px;text-align:center}
+  .pay-wrap .t1{font-weight:900;font-size:18px}
+  .pay-wrap .t2{font-size:13px;color:var(--text-soft);margin-top:4px}
+  .qr-box{margin:20px auto 0;width:220px;height:220px;border-radius:20px;background:var(--card);border:1px solid rgba(43,36,32,.1);padding:14px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .qr-box img{width:100%;height:100%;object-fit:contain;border-radius:10px}
+  .pay-wrap .due-lbl{margin-top:20px;font-size:13px;color:var(--text-soft2)}
+  .pay-wrap .due-val{font-weight:900;font-size:30px;color:var(--accent);margin-top:2px}
+  .pay-note{margin-top:22px;padding:12px 16px;background:var(--info-bg);border-radius:14px;font-size:12.5px;color:var(--info-text);font-weight:600;text-align:left}
+
+  /* Confirmation */
+  .confirm-wrap{padding:40px 24px 40px;text-align:center}
+  .confirm-wrap .check{width:76px;height:76px;border-radius:38px;background:var(--accent);color:#fff;font-size:36px;display:flex;align-items:center;justify-content:center;margin:0 auto;animation:popIn .5s ease}
+  .confirm-wrap .t1{font-weight:900;font-size:20px;margin-top:18px}
+  .confirm-wrap .t2{font-size:13px;color:var(--text-soft);margin-top:4px}
+  .pickup-box{margin-top:24px;padding:18px;background:var(--card);border-radius:18px;border:1px dashed rgba(43,36,32,.15)}
+  .pickup-box .lbl{font-size:11px;letter-spacing:1px;color:rgba(43,36,32,.45);font-weight:700}
+  .pickup-box .code{font-size:28px;font-weight:900;color:var(--accent);letter-spacing:1px;margin-top:4px}
+  .owner-notice{margin-top:14px;display:flex;align-items:center;gap:8px;justify-content:center;font-size:12px;color:var(--info-text);font-weight:700;animation:fadeUp .3s ease}
+  .steps{margin-top:26px;display:flex;justify-content:space-between;padding:0 6px}
+  .step{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .step .dot{width:28px;height:28px;border-radius:14px;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
+  .step .lbl{font-size:11px;font-weight:700}
+  .step-line{flex:1;height:28px;display:flex;align-items:center}
+  .step-line .bar{height:2px;flex:1}
+  .status-msg{margin-top:20px;font-size:13px;color:rgba(43,36,32,.6)}
+
+  /* Rewards */
+  .rewards-wrap{padding:20px 20px 100px}
+  .stamp-card{background:var(--accent);border-radius:20px;padding:20px;color:#fff;text-align:center}
+  .stamp-card .lbl{font-size:12px;opacity:.85;font-weight:700}
+  .stamp-card .n{font-size:34px;font-weight:900;margin-top:4px}
+  .stamp-icons{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+  .stamp-icon{width:28px;height:28px;border-radius:14px;background:rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:14px}
+  .stamp-icon.filled{background:rgba(255,255,255,.95);color:var(--accent)}
+  .stamp-card .sub{font-size:11.5px;opacity:.85;margin-top:10px}
+  .free-cups-box{margin-top:20px;padding:14px;background:var(--card);border-radius:16px;border:1px solid var(--border);text-align:center}
+  .free-cups-box .t1{font-weight:800;font-size:14px}
+  .free-cups-box .t2{font-size:12px;color:var(--text-soft2);margin-top:4px}
+  .reward-msg{margin-top:16px;padding:12px 14px;background:var(--info-bg);border-radius:14px;font-size:12.5px;color:var(--info-text);font-weight:700;animation:fadeUp .3s ease}
+
+  /* Floating cart bar */
+  #cart-bar{position:fixed;left:16px;right:16px;bottom:16px;max-width:390px;margin:0 auto;height:50px;border-radius:16px;background:var(--accent);color:#fff;display:none;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14.5px;cursor:pointer;box-shadow:0 8px 20px rgba(28,127,193,.35);z-index:6}
+  #cart-bar.show{display:flex}
+
+  /* Fallback main button (used when not inside Telegram) */
+  #main-btn-wrap{position:fixed;left:0;right:0;bottom:0;max-width:430px;margin:0 auto;padding:8px 16px 20px;background:linear-gradient(to top,var(--bg) 60%,rgba(251,241,225,0));display:none;z-index:6}
+  #main-btn-wrap.show{display:block}
+  #main-btn{height:50px;border-radius:14px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer}
+  #main-btn:active{background:var(--accent-dark)}
+
+  #content.has-fallback-btn{padding-bottom:90px}
+
+  @media (min-width:480px){
+    #app{max-width:430px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.08)}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div class="back-btn" id="backBtn">‹</div>
+    <div class="title" id="headerTitle">7Teen Café</div>
+    <div class="close-btn" id="closeBtn">✕</div>
+  </div>
+  <div id="content"></div>
+  <div id="cart-bar"></div>
+  <div id="main-btn-wrap"><div id="main-btn"></div></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+  var ORDER_ENDPOINT = "/api/order";
+
+  var MENU = [
+    { id:'latte', name:'Iced Latte', desc:'Espresso, cold milk, ice', price:4.5, category:'Coffee', imgLabel:'photo:\niced latte', photo:null },
+    { id:'coldbrew', name:'Cold Brew', desc:'Slow-steeped, smooth & bold', price:4.0, category:'Coffee', imgLabel:'photo:\ncold brew', photo:null },
+    { id:'cappuccino', name:'Cappuccino', desc:'Double shot, velvet foam', price:4.25, category:'Coffee', imgLabel:'photo:\ncappuccino', photo:null },
+    { id:'matcha', name:'Matcha Latte', desc:'Ceremonial grade, oat milk', price:5.0, category:'Tea', imgLabel:'photo:\nmatcha latte', photo:null },
+    { id:'peachtea', name:'Peach Iced Tea', desc:'Black tea, fresh peach', price:3.75, category:'Tea', imgLabel:'photo:\npeach tea', photo:null },
+    { id:'croissant', name:'Croissant', desc:'Butter, flaky, baked daily', price:3.25, category:'Pastries', imgLabel:'photo:\ncroissant', photo:null },
+    { id:'banana', name:'Banana Bread', desc:'Warm, walnuts, cinnamon', price:3.5, category:'Pastries', imgLabel:'photo:\nbanana bread', photo:null },
+    { id:'avotoast', name:'Avocado Toast', desc:'Sourdough, chili flake, lime', price:6.5, category:'Food', imgLabel:'photo:\navo toast', photo:null },
+  ];
+  var CATEGORIES = ['Coffee','Tea','Pastries','Food'];
+  var SUGAR_OPTS = ['0%','25%','50%','75%','100%'];
+  var ADDON_OPTS = [{ id:'extra', label:'Extra Shot', price:0.25 }];
+  var STAMPS_NEEDED = 6;
+  var ACCENT = '#1C7FC1';
+
+  function addonPrice(id){ var a = ADDON_OPTS.find(function(x){return x.id===id}); return a ? a.price : 0; }
+  function cartKey(id, sugar, addons){ return id + '|' + sugar + '|' + addons.slice().sort().join(','); }
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function money(n){ return n.toFixed(2); }
+
+  var tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
+
+  var state = {
+    screen: 'home', cart: {}, category: 'Coffee', selectedItemId: null, itemQty: 1,
+    sugar: '100%', addons: [],
+    redeemFreeCup: false, stamps: 0, freeCups: 0, orderCode: null, orderStatus: 'received',
+    showOwnerNotice: false, rewardMsg: null,
+  };
+
+  function setState(patch){
+    if (typeof patch === 'function') patch = patch(state);
+    Object.assign(state, patch);
+    render();
+  }
+
+  function unitPrice(m, sugar, addons){
+    return m.price + addons.reduce(function(sum, a){ return sum + addonPrice(a); }, 0);
+  }
+
+  function computeTotal(){
+    var cart = state.cart, subtotal = 0;
+    Object.keys(cart).forEach(function(k){
+      var entry = cart[k];
+      var m = MENU.find(function(x){ return x.id === entry.id; });
+      if (m) subtotal += unitPrice(m, entry.sugar, entry.addons) * entry.qty;
+    });
+    var discount = 0;
+    if (state.redeemFreeCup && state.freeCups > 0){
+      var prices = Object.keys(cart).map(function(k){
+        var entry = cart[k];
+        var m = MENU.find(function(x){ return x.id === entry.id; });
+        return unitPrice(m, entry.sugar, entry.addons);
+      });
+      if (prices.length) discount = Math.max.apply(null, prices);
+    }
+    return { subtotal: subtotal, discount: discount, total: Math.max(0, subtotal - discount) };
+  }
+
+  // ---- actions ----
+  function backHome(){ setState({ screen: state.screen === 'pay' ? 'cart' : 'home' }); }
+  function goCart(){ setState({ screen: 'cart' }); }
+  function goPay(){ setState({ screen: 'pay' }); }
+  function goRewards(){ setState({ screen: 'rewards' }); }
+  function setCategory(c){ setState({ category: c }); }
+  function openItem(id){ setState({ screen: 'item', selectedItemId: id, itemQty: 1, sugar: '100%', addons: [] }); }
+  function incItemQty(){ setState(function(s){ return { itemQty: Math.min(9, s.itemQty + 1) }; }); }
+  function decItemQty(){ setState(function(s){ return { itemQty: Math.max(1, s.itemQty - 1) }; }); }
+  function setSugar(v){ setState({ sugar: v }); }
+  function toggleAddon(id){
+    setState(function(s){
+      var has = s.addons.indexOf(id) !== -1;
+      return { addons: has ? s.addons.filter(function(a){ return a !== id; }) : s.addons.concat([id]) };
+    });
+  }
+  function toggleRedeem(){ setState(function(s){ return { redeemFreeCup: !s.redeemFreeCup }; }); }
+
+  function addToCart(){
+    var id = state.selectedItemId, qty = state.itemQty, sugar = state.sugar, addons = state.addons;
+    var key = cartKey(id, sugar, addons);
+    setState(function(s){
+      var cart = Object.assign({}, s.cart);
+      var existing = cart[key];
+      cart[key] = { id: id, sugar: sugar, addons: addons, qty: (existing ? existing.qty : 0) + qty };
+      return { cart: cart, screen: 'home' };
+    });
+  }
+  function cartInc(id, sugar, addons){
+    sugar = sugar || '100%'; addons = addons || [];
+    var key = cartKey(id, sugar, addons);
+    setState(function(s){
+      var existing = s.cart[key];
+      var cart = Object.assign({}, s.cart);
+      cart[key] = { id: id, sugar: sugar, addons: addons, qty: (existing ? existing.qty : 0) + 1 };
+      return { cart: cart };
+    });
+  }
+  function cartDec(id, sugar, addons){
+    sugar = sugar || '100%'; addons = addons || [];
+    var key = cartKey(id, sugar, addons);
+    setState(function(s){
+      var cart = Object.assign({}, s.cart);
+      var existing = cart[key];
+      var q = (existing ? existing.qty : 0) - 1;
+      if (q <= 0) delete cart[key]; else cart[key] = Object.assign({}, existing, { qty: q });
+      return { cart: cart };
+    });
+  }
+
+  function pay(){
+    var totals = computeTotal();
+    var code = '7T-' + Math.floor(400 + Math.random() * 599);
+    var cart = state.cart;
+    var cupsInOrder = Object.keys(cart).reduce(function(a, k){ return a + cart[k].qty; }, 0);
+    var spentFreeCup = state.redeemFreeCup && state.freeCups > 0 ? 1 : 0;
+
+    var orderPayload = {
+      orderCode: code,
+      items: Object.keys(cart).map(function(k){
+        var e = cart[k];
+        var m = MENU.find(function(x){ return x.id === e.id; });
+        return {
+          name: m ? m.name : e.id, qty: e.qty, sugar: e.sugar,
+          addons: e.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; }),
+          unitPrice: m ? unitPrice(m, e.sugar, e.addons) : 0,
+        };
+      }),
+      subtotal: totals.subtotal, discount: totals.discount, total: totals.total,
+      redeemedFreeCup: !!spentFreeCup,
+      customer: tgUser ? {
+        id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username,
+      } : null,
+      timestamp: new Date().toISOString(),
+    };
+
+    setState(function(s){
+      var totalStamps = s.stamps + cupsInOrder;
+      var newFreeCups = s.freeCups - spentFreeCup + Math.floor(totalStamps / STAMPS_NEEDED);
+      var remainingStamps = totalStamps % STAMPS_NEEDED;
+      return {
+        screen: 'confirm', orderCode: code, orderStatus: 'received', cart: {},
+        redeemFreeCup: false, stamps: remainingStamps, freeCups: Math.max(0, newFreeCups),
+        showOwnerNotice: false,
+      };
+    });
+
+    sendOrderToOwner(orderPayload);
+
+    setTimeout(function(){ setState(function(s){ return s.screen === 'confirm' ? { orderStatus: 'preparing' } : {}; }); }, 3000);
+    setTimeout(function(){ setState(function(s){ return s.screen === 'confirm' ? { orderStatus: 'ready' } : {}; }); }, 7000);
+  }
+
+  function sendOrderToOwner(payload){
+    fetch(ORDER_ENDPOINT, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    }).then(function(res){
+      if (res.ok) setState(function(s){ return s.screen === 'confirm' ? { showOwnerNotice: true } : {}; });
+    }).catch(function(err){ console.error('Order notify failed', err); });
+  }
+
+  // ---- render helpers ----
+  function screenTitle(){
+    return { home:'7Teen Café', item:'Item', cart:'Your bag', pay:'Payment', confirm:'Order placed', rewards:'Rewards' }[state.screen];
+  }
+
+  function renderHome(){
+    var heroName = esc((tgUser && tgUser.first_name) || 'Friend');
+    var catsHtml = CATEGORIES.map(function(c){
+      return '<div class="cat-chip' + (c === state.category ? ' active' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '</div>';
+    }).join('');
+
+    var items = MENU.filter(function(m){ return m.category === state.category; });
+    var itemsHtml = items.map(function(m){
+      var key = cartKey(m.id, '100%', []);
+      var entry = state.cart[key];
+      var qty = entry ? entry.qty : 0;
+      var thumb = m.photo
+        ? '<img src="' + esc(m.photo) + '" alt="">'
+        : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+      var ctrl = qty > 0
+        ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
+        : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
+      return '' +
+        '<div class="item-card">' +
+          '<div class="item-thumb" data-open="' + m.id + '">' + thumb + '</div>' +
+          '<div class="item-info" data-open="' + m.id + '">' +
+            '<div class="nm">' + esc(m.name) + '</div>' +
+            '<div class="ds">' + esc(m.desc) + '</div>' +
+            '<div class="pr">$' + money(m.price) + '</div>' +
+          '</div>' +
+          ctrl +
+        '</div>';
+    }).join('');
+
+    return '' +
+      '<div class="home-top">' +
+        '<img class="logo" src="assets/7Teen_Logo.png" alt="7Teen Café">' +
+        '<div class="greet"><div class="hey">Hey ' + heroName + ' 👋</div><div class="q">What are you feeling today?</div></div>' +
+        '<div class="stamp-badge" id="rewardsBtn"><span>☕</span><span class="n">' + state.stamps + '/' + STAMPS_NEEDED + '</span></div>' +
+      '</div>' +
+      '<div class="cat-row">' + catsHtml + '</div>' +
+      '<div class="item-list">' + itemsHtml + '</div>';
+  }
+
+  function renderItem(){
+    var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
+    var isDrink = m.category === 'Coffee' || m.category === 'Tea';
+    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+
+    var sugarHtml = isDrink ? (
+      '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
+      SUGAR_OPTS.map(function(sg){
+        return '<div class="sugar-chip' + (sg === state.sugar ? ' active' : '') + '" data-sugar="' + sg + '">' + sg + '</div>';
+      }).join('') + '</div>'
+    ) : '';
+
+    var addonsHtml = ADDON_OPTS.map(function(ad){
+      var active = state.addons.indexOf(ad.id) !== -1;
+      return '<div class="addon-chip' + (active ? ' active' : '') + '" data-addon="' + ad.id + '">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>';
+    }).join('');
+
+    var unit = unitPrice(m, state.sugar, state.addons);
+
+    return '' +
+      '<div class="item-hero">' + hero + '</div>' +
+      '<div class="detail-body">' +
+        '<div class="nm">' + esc(m.name) + '</div>' +
+        '<div class="pr">$' + money(unit) + '</div>' +
+        '<div class="ds">' + esc(m.desc) + '</div>' +
+        sugarHtml +
+        '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' +
+        '<div class="qty-row"><div class="lbl">Quantity</div><div class="ctrl">' +
+          '<div class="btn" id="itemDec">–</div><div class="n">' + state.itemQty + '</div><div class="btn" id="itemInc">+</div>' +
+        '</div></div>' +
+      '</div>';
+  }
+
+  function renderCart(){
+    var keys = Object.keys(state.cart);
+    if (keys.length === 0){
+      return '<div class="empty-cart"><div class="t1">Your bag is empty</div><div class="t2">Add something tasty from the menu.</div></div>';
+    }
+    var rowsHtml = keys.map(function(key){
+      var e = state.cart[key];
+      var m = MENU.find(function(x){ return x.id === e.id; });
+      var unit = unitPrice(m, e.sugar, e.addons);
+      var sugarLabel = (m.category === 'Coffee' || m.category === 'Tea') ? (e.sugar + ' sugar') : null;
+      var addonLabels = e.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; });
+      var detailParts = [sugarLabel].concat(addonLabels).filter(Boolean);
+      return '' +
+        '<div class="cart-row">' +
+          '<div class="thumb"></div>' +
+          '<div class="info">' +
+            '<div class="nm">' + esc(m.name) + '</div>' +
+            (detailParts.length ? '<div class="dt">' + esc(detailParts.join(', ')) + '</div>' : '') +
+            '<div class="pr">$' + money(unit * e.qty) + '</div>' +
+          '</div>' +
+          '<div class="ctrl"><div class="btn" data-cart-dec="' + key + '">–</div><div class="n">' + e.qty + '</div><div class="btn" data-cart-inc="' + key + '">+</div></div>' +
+        '</div>';
+    }).join('');
+
+    var totals = computeTotal();
+    var canRedeem = state.freeCups > 0 && keys.length > 0;
+    var redeemHtml = canRedeem ? (
+      '<div class="redeem-row" id="redeemToggle"><div class="lbl">Use free cup reward</div>' +
+      '<div class="toggle' + (state.redeemFreeCup ? ' on' : '') + '"><div class="dot"></div></div></div>'
+    ) : '';
+
+    var discountRow = state.redeemFreeCup ? (
+      '<div class="row discount"><span>Free cup reward</span><span>–$' + money(totals.discount) + '</span></div>'
+    ) : '';
+
+    return '' +
+      '<div class="cart-list">' + rowsHtml + '</div>' +
+      redeemHtml +
+      '<div class="totals">' +
+        '<div class="row"><span>Subtotal</span><span>$' + money(totals.subtotal) + '</span></div>' +
+        discountRow +
+        '<div class="row total"><span>Total</span><span>$' + money(totals.total) + '</span></div>' +
+      '</div>';
+  }
+
+  function renderPay(){
+    var totals = computeTotal();
+    return '' +
+      '<div class="pay-wrap">' +
+        '<div class="t1">Scan to pay</div>' +
+        '<div class="t2">KHQR · 7Teen Café</div>' +
+        '<div class="qr-box"><img src="assets/khqr.jpg" alt="KHQR code"></div>' +
+        '<div class="due-lbl">Amount due</div>' +
+        '<div class="due-val">$' + money(totals.total) + '</div>' +
+        '<div class="pay-note">Open your banking app, scan the code, then tap "I\'ve Paid" below to confirm.</div>' +
+      '</div>';
+  }
+
+  function renderConfirm(){
+    var order = ['received','preparing','ready'];
+    var idx = order.indexOf(state.orderStatus);
+    function stepColor(step){ return order.indexOf(step) <= idx ? ACCENT : 'rgba(43,36,32,.2)'; }
+    var statusMessages = {
+      received: "We've got your order — sit tight!",
+      preparing: 'Your order is being made fresh.',
+      ready: 'Stay calm, your drink is on the way',
+    };
+    var ownerNotice = state.showOwnerNotice
+      ? '<div class="owner-notice"><span>📤</span><span>Order report sent to owner\'s Telegram</span></div>' : '';
+
+    return '' +
+      '<div class="confirm-wrap">' +
+        '<div class="check">✓</div>' +
+        '<div class="t1">Order placed!</div>' +
+        '<div class="t2">Your drinks is on the way, stay calm!</div>' +
+        '<div class="pickup-box"><div class="lbl">PICKUP CODE</div><div class="code">' + esc(state.orderCode || '') + '</div></div>' +
+        ownerNotice +
+        '<div class="steps">' +
+          '<div class="step"><div class="dot" style="background:' + stepColor('received') + '">1</div><div class="lbl" style="color:' + (idx>=0?'#2B2420':'rgba(43,36,32,.4)') + '">Received</div></div>' +
+          '<div class="step-line"><div class="bar" style="background:' + (idx>=1?ACCENT:'rgba(43,36,32,.15)') + '"></div></div>' +
+          '<div class="step"><div class="dot" style="background:' + stepColor('preparing') + '">2</div><div class="lbl" style="color:' + (idx>=1?'#2B2420':'rgba(43,36,32,.4)') + '">Preparing</div></div>' +
+          '<div class="step-line"><div class="bar" style="background:' + (idx>=2?ACCENT:'rgba(43,36,32,.15)') + '"></div></div>' +
+          '<div class="step"><div class="dot" style="background:' + stepColor('ready') + '">3</div><div class="lbl" style="color:' + (idx>=2?'#2B2420':'rgba(43,36,32,.4)') + '">Ready</div></div>' +
+        '</div>' +
+        '<div class="status-msg">' + esc(statusMessages[state.orderStatus]) + '</div>' +
+      '</div>';
+  }
+
+  function renderRewards(){
+    var stampsHtml = '';
+    for (var i = 0; i < STAMPS_NEEDED; i++){
+      stampsHtml += '<div class="stamp-icon' + (i < state.stamps ? ' filled' : '') + '">☕</div>';
+    }
+    var freeCupsLabel = state.freeCups === 1 ? '1 free cup available' : (state.freeCups + ' free cups available');
+    return '' +
+      '<div class="rewards-wrap">' +
+        '<div class="stamp-card">' +
+          '<div class="lbl">LOYALTY STAMPS</div>' +
+          '<div class="n">' + state.stamps + '/' + STAMPS_NEEDED + '</div>' +
+          '<div class="stamp-icons">' + stampsHtml + '</div>' +
+          '<div class="sub">Buy 6 cups, get the 7th free</div>' +
+        '</div>' +
+        '<div class="free-cups-box"><div class="t1">' + esc(freeCupsLabel) + '</div><div class="t2">Redeem at checkout when you order a drink</div></div>' +
+      '</div>';
+  }
+
+  function render(){
+    var content = document.getElementById('content');
+    var html = '';
+    if (state.screen === 'home') html = renderHome();
+    else if (state.screen === 'item') html = renderItem();
+    else if (state.screen === 'cart') html = renderCart();
+    else if (state.screen === 'pay') html = renderPay();
+    else if (state.screen === 'confirm') html = renderConfirm();
+    else if (state.screen === 'rewards') html = renderRewards();
+    content.innerHTML = html;
+
+    document.getElementById('headerTitle').textContent = screenTitle();
+    var showBack = ['item','cart','rewards','pay'].indexOf(state.screen) !== -1;
+    var showClose = state.screen === 'confirm';
+    document.getElementById('backBtn').className = 'back-btn' + (showBack ? ' show' : '');
+    document.getElementById('closeBtn').className = 'close-btn' + (showClose ? ' show' : '');
+
+    var cartCount = Object.keys(state.cart).reduce(function(a,k){ return a + state.cart[k].qty; }, 0);
+    var cartBar = document.getElementById('cart-bar');
+    var showCartBar = state.screen === 'home' && cartCount > 0;
+    if (showCartBar){
+      var totals = computeTotal();
+      cartBar.className = 'show';
+      cartBar.textContent = 'View bag · ' + cartCount + ' · $' + money(totals.total);
+    } else {
+      cartBar.className = '';
+      cartBar.textContent = '';
+    }
+
+    updateMainButton();
+    bindScreenEvents();
+  }
+
+  // ---- main button (Telegram native, fallback custom) ----
+  function updateMainButton(){
+    var showMain = ['item','cart','pay'].indexOf(state.screen) !== -1;
+    var label, action;
+    if (state.screen === 'item'){
+      var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
+      var unit = unitPrice(m, state.sugar, state.addons);
+      label = 'Add to bag · $' + money(unit * state.itemQty);
+      action = addToCart;
+    } else if (state.screen === 'cart'){
+      var totals = computeTotal();
+      var keys = Object.keys(state.cart);
+      if (keys.length === 0){ showMain = false; }
+      label = "Pay · $" + money(totals.total);
+      action = goPay;
+    } else if (state.screen === 'pay'){
+      label = "I've Paid";
+      action = pay;
+    }
+
+    var wrap = document.getElementById('main-btn-wrap');
+    var btn = document.getElementById('main-btn');
+
+    if (tg && tg.MainButton){
+      if (showMain){
+        tg.MainButton.setText(label);
+        tg.MainButton.show();
+        tg.MainButton.offClick(mainButtonHandler);
+        mainButtonHandler = action;
+        tg.MainButton.onClick(mainButtonHandler);
+      } else {
+        tg.MainButton.hide();
+      }
+      wrap.className = '';
+      document.getElementById('content').className = '';
+    } else {
+      if (showMain){
+        wrap.className = 'show';
+        btn.textContent = label;
+        btn.onclick = action;
+        document.getElementById('content').className = 'has-fallback-btn';
+      } else {
+        wrap.className = '';
+        document.getElementById('content').className = '';
+      }
+    }
+  }
+  var mainButtonHandler = null;
+
+  // ---- event binding ----
+  function bindScreenEvents(){
+    var content = document.getElementById('content');
+
+    content.querySelectorAll('[data-cat]').forEach(function(el){
+      el.addEventListener('click', function(){ setCategory(el.getAttribute('data-cat')); });
+    });
+    content.querySelectorAll('[data-open]').forEach(function(el){
+      el.addEventListener('click', function(){ openItem(el.getAttribute('data-open')); });
+    });
+    content.querySelectorAll('[data-inc]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); cartInc(el.getAttribute('data-inc')); });
+    });
+    content.querySelectorAll('[data-dec]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); cartDec(el.getAttribute('data-dec')); });
+    });
+    content.querySelectorAll('[data-sugar]').forEach(function(el){
+      el.addEventListener('click', function(){ setSugar(el.getAttribute('data-sugar')); });
+    });
+    content.querySelectorAll('[data-addon]').forEach(function(el){
+      el.addEventListener('click', function(){ toggleAddon(el.getAttribute('data-addon')); });
+    });
+    var itemInc = document.getElementById('itemInc');
+    if (itemInc) itemInc.addEventListener('click', incItemQty);
+    var itemDec = document.getElementById('itemDec');
+    if (itemDec) itemDec.addEventListener('click', decItemQty);
+
+    content.querySelectorAll('[data-cart-inc]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var key = el.getAttribute('data-cart-inc'); var e = state.cart[key];
+        cartInc(e.id, e.sugar, e.addons);
+      });
+    });
+    content.querySelectorAll('[data-cart-dec]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var key = el.getAttribute('data-cart-dec'); var e = state.cart[key];
+        cartDec(e.id, e.sugar, e.addons);
+      });
+    });
+
+    var redeemToggle = document.getElementById('redeemToggle');
+    if (redeemToggle) redeemToggle.addEventListener('click', toggleRedeem);
+
+    var rewardsBtn = document.getElementById('rewardsBtn');
+    if (rewardsBtn) rewardsBtn.addEventListener('click', goRewards);
+  }
+
+  document.getElementById('backBtn').addEventListener('click', backHome);
+  document.getElementById('closeBtn').addEventListener('click', backHome);
+  document.getElementById('cart-bar').addEventListener('click', goCart);
+
+  // ---- Telegram BackButton wiring ----
+  function updateTgBackButton(){
+    if (!tg || !tg.BackButton) return;
+    var showBack = ['item','cart','rewards','pay'].indexOf(state.screen) !== -1;
+    if (showBack) tg.BackButton.show(); else tg.BackButton.hide();
+  }
+  var origSetState = setState;
+  setState = function(patch){ origSetState(patch); updateTgBackButton(); };
+
+  // ---- boot ----
+  if (tg){
+    try { tg.ready(); } catch(e){}
+    try { tg.expand(); } catch(e){}
+    try { tg.setHeaderColor('#FBF1E1'); } catch(e){}
+    try { tg.setBackgroundColor('#FBF1E1'); } catch(e){}
+    if (tg.BackButton) tg.BackButton.onClick(backHome);
+  }
+
+  render();
+  updateTgBackButton();
+})();
+</script>
+</body>
+</html>
