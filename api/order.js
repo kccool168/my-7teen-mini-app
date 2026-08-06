@@ -3,8 +3,14 @@
 // Called by the Mini App when a customer taps "I've Paid". It:
 //  1. Atomically updates the customer's loyalty stamp count in Redis
 //     (keyed by their Telegram user id), so stamps persist across visits.
-//  2. Sends an order receipt directly to the customer's Telegram chat.
-//  3. Sends the shop's order report to the staff Telegram group.
+//  2. Caps any redeemed "free cup" reward to the price of the customer's
+//     most recent order (so someone who usually orders a $1.25 cup can't
+//     redeem a $1.75 item for free) — computed and enforced server-side,
+//     never trusted from the client. The cap is persisted so future
+//     redemptions stay accurate.
+//  3. Sends an order receipt directly to the customer's Telegram chat.
+//  4. Sends the shop's order report (including any customer remark) to the
+//     staff Telegram group.
 import getClient from './_redis.js';
 
 const STAMPS_NEEDED = 6;
@@ -34,9 +40,18 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Order must include at least one item' });
   }
 
-  // ---- 1. Persist loyalty stamps (best-effort; order still succeeds if this fails) ----
+  // Customer's optional note, capped to 50 chars regardless of what the
+  // client sent.
+  const remark = typeof order.remark === 'string' ? order.remark.trim().slice(0, 50) : '';
+
+  // ---- 1. Persist loyalty stamps + resolve the redeemed reward (best-effort;
+  //         order still succeeds if Redis is unavailable) ----
   let stamps = 0;
   let freeCups = 0;
+  let appliedDiscount = 0;
+  let appliedTotal = Number(order.subtotal) || 0;
+  let lastCupPrice = null;
+  let redeemApplied = false;
   const userId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
 
   if (userId) {
@@ -44,33 +59,62 @@ export default async function handler(req, res) {
       const client = await getClient();
       const totalKey = `user:${userId}:total`;
       const usedKey = `user:${userId}:used`;
+      const lastPriceKey = `user:${userId}:lastPrice`;
       const cupsInOrder = order.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+      const subtotal = Number(order.subtotal) || 0;
 
-      if (order.redeemedFreeCup) {
-        const [totalStr, usedStr] = await Promise.all([client.get(totalKey), client.get(usedKey)]);
-        const total = parseInt(totalStr || '0', 10) || 0;
-        const used = parseInt(usedStr || '0', 10) || 0;
-        const available = Math.max(0, Math.floor(total / STAMPS_NEEDED) - used);
-        if (available > 0) {
-          await client.incr(usedKey);
-        }
+      const [totalStr, usedStr, lastPriceStr] = await Promise.all([
+        client.get(totalKey), client.get(usedKey), client.get(lastPriceKey),
+      ]);
+      const priorTotal = parseInt(totalStr || '0', 10) || 0;
+      const priorUsed = parseInt(usedStr || '0', 10) || 0;
+      const priorAvailable = Math.max(0, Math.floor(priorTotal / STAMPS_NEEDED) - priorUsed);
+      const priorLastCupPrice = lastPriceStr != null ? parseFloat(lastPriceStr) : null;
+
+      // Redemption is only honored if the account actually has a free cup
+      // banked server-side — never trust the client's redeemedFreeCup flag
+      // alone. The discount amount is computed here too, capped to the
+      // price of the customer's last order (not whatever the client sent).
+      if (order.redeemedFreeCup && priorAvailable > 0) {
+        redeemApplied = true;
+        await client.incr(usedKey);
       }
+
+      if (redeemApplied) {
+        const maxUnitPrice = order.items.reduce((max, item) => Math.max(max, Number(item.unitPrice) || 0), 0);
+        appliedDiscount = (priorLastCupPrice != null && !isNaN(priorLastCupPrice))
+          ? Math.min(maxUnitPrice, priorLastCupPrice)
+          : maxUnitPrice;
+      }
+      appliedTotal = Math.max(0, subtotal - appliedDiscount);
 
       const newTotal = await client.incrBy(totalKey, cupsInOrder);
       const usedStr2 = await client.get(usedKey);
       const used2 = parseInt(usedStr2 || '0', 10) || 0;
       stamps = newTotal % STAMPS_NEEDED;
       freeCups = Math.max(0, Math.floor(newTotal / STAMPS_NEEDED) - used2);
+
+      // Record this order's price-per-cup as the cap for the *next*
+      // redemption.
+      if (cupsInOrder > 0) {
+        const pricePerCup = subtotal / cupsInOrder;
+        await client.set(lastPriceKey, pricePerCup.toFixed(2));
+        lastCupPrice = Math.round(pricePerCup * 100) / 100;
+      }
     } catch (err) {
       console.error('Stamp persistence failed', err);
     }
   }
 
+  const resolvedOrder = Object.assign({}, order, {
+    discount: appliedDiscount, total: appliedTotal, remark, redeemedFreeCup: redeemApplied,
+  });
+
   // ---- 2. Send receipt to the customer ----
   let customerNotified = false;
   if (userId) {
     try {
-      const receiptMessage = formatReceiptMessage(order, stamps, freeCups);
+      const receiptMessage = formatReceiptMessage(resolvedOrder, stamps, freeCups);
       const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,7 +131,7 @@ export default async function handler(req, res) {
   // ---- 3. Send report to the staff group ----
   let groupNotified = false;
   try {
-    const groupMessage = formatGroupMessage(order);
+    const groupMessage = formatGroupMessage(resolvedOrder);
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -104,7 +148,10 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'Internal error' });
   }
 
-  return res.status(200).json({ ok: true, stamps, freeCups, customerNotified, groupNotified });
+  return res.status(200).json({
+    ok: true, stamps, freeCups, customerNotified, groupNotified,
+    discount: appliedDiscount, total: appliedTotal, lastCupPrice,
+  });
 }
 
 function esc(s) {
@@ -158,6 +205,7 @@ function formatGroupMessage(order) {
     const handle = order.customer.username ? ` (@${esc(order.customer.username)})` : '';
     lines.push(`👤 ${esc(name) || 'Customer'}${handle}`);
   }
+  if (order.remark) lines.push(`📝 Remark: ${esc(order.remark)}`);
   lines.push(`🕐 ${esc(formatTimestamp(order.timestamp))}`);
 
   return lines.join('\n');
