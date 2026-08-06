@@ -133,6 +133,9 @@
   .pay-wrap .t2{font-size:13px;color:var(--text-soft);margin-top:4px}
   .qr-box{margin:20px auto 0;width:220px;height:220px;border-radius:20px;background:var(--card);border:1px solid rgba(43,36,32,.1);padding:14px;display:flex;align-items:center;justify-content:center;overflow:hidden}
   .qr-box img{width:100%;height:100%;object-fit:contain;border-radius:10px}
+  .qr-actions{display:flex;gap:10px;justify-content:center;margin-top:16px}
+  .qr-actions .qbtn{display:flex;align-items:center;gap:6px;padding:9px 16px;border-radius:14px;background:var(--info-bg);color:var(--info-text);font-size:12.5px;font-weight:700;cursor:pointer}
+  .qr-actions .qbtn:active{background:#d9ecf9}
   .pay-wrap .due-lbl{margin-top:20px;font-size:13px;color:var(--text-soft2)}
   .pay-wrap .due-val{font-weight:900;font-size:30px;color:var(--accent);margin-top:2px}
   .pay-note{margin-top:22px;padding:12px 16px;background:var(--info-bg);border-radius:14px;font-size:12.5px;color:var(--info-text);font-weight:600;text-align:left}
@@ -245,6 +248,7 @@
   function cartKey(id, sugar, addons){ return id + '|' + sugar + '|' + addons.slice().sort().join(','); }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function money(n){ return n.toFixed(2); }
+  function absUrl(path){ return new URL(path, location.href).href; }
 
   var tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
 
@@ -339,6 +343,44 @@
       var q = (existing ? existing.qty : 0) - 1;
       if (q <= 0) delete cart[key]; else cart[key] = Object.assign({}, existing, { qty: q });
       return { cart: cart };
+    });
+  }
+
+  var QR_ASSET = 'assets/khqr-v2.jpg';
+
+  function downloadQR(){
+    fetch(QR_ASSET).then(function(res){ return res.blob(); }).then(function(blob){
+      var blobUrl = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = '7Teen-Cafe-KHQR.jpg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 5000);
+    }).catch(function(err){
+      console.error('QR download failed', err);
+      // Fallback: open the image directly so the user can long-press/save it.
+      if (tg && tg.openLink) tg.openLink(absUrl(QR_ASSET));
+      else window.open(QR_ASSET, '_blank');
+    });
+  }
+
+  function shareQR(){
+    fetch(QR_ASSET).then(function(res){ return res.blob(); }).then(function(blob){
+      var file = new File([blob], '7Teen-Cafe-KHQR.jpg', { type: blob.type || 'image/jpeg' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })){
+        return navigator.share({ files: [file], title: '7Teen Café KHQR', text: 'Scan this KHQR code to pay 7Teen Café.' });
+      }
+      if (navigator.share){
+        return navigator.share({ title: '7Teen Café KHQR', text: 'Scan this KHQR code to pay 7Teen Café.', url: absUrl(QR_ASSET) });
+      }
+      return Promise.reject(new Error('Web Share API not supported'));
+    }).catch(function(err){
+      if (err && err.name === 'AbortError') return; // user closed the share sheet
+      console.error('QR share failed', err);
+      if (tg && tg.openLink) tg.openLink(absUrl(QR_ASSET));
+      else window.open(QR_ASSET, '_blank');
     });
   }
 
@@ -552,7 +594,11 @@
       '<div class="pay-wrap">' +
         '<div class="t1">Scan to pay</div>' +
         '<div class="t2">KHQR · 7Teen Café</div>' +
-        '<div class="qr-box"><img src="assets/khqr-v2.jpg" alt="KHQR code"></div>' +
+        '<div class="qr-box"><img src="' + QR_ASSET + '" alt="KHQR code"></div>' +
+        '<div class="qr-actions">' +
+          '<div class="qbtn" id="qrDownloadBtn"><span>⬇️</span><span>Download QR</span></div>' +
+          '<div class="qbtn" id="qrShareBtn"><span>📤</span><span>Share QR</span></div>' +
+        '</div>' +
         '<div class="due-lbl">Amount due</div>' +
         '<div class="due-val">$' + money(totals.total) + '</div>' +
         '<div class="pay-note">Open your banking app, scan the code, then tap "I\'ve Paid" below to confirm.</div>' +
@@ -747,6 +793,11 @@
 
     var rewardsBtn = document.getElementById('rewardsBtn');
     if (rewardsBtn) rewardsBtn.addEventListener('click', goRewards);
+
+    var qrDownloadBtn = document.getElementById('qrDownloadBtn');
+    if (qrDownloadBtn) qrDownloadBtn.addEventListener('click', downloadQR);
+    var qrShareBtn = document.getElementById('qrShareBtn');
+    if (qrShareBtn) qrShareBtn.addEventListener('click', shareQR);
   }
 
   document.getElementById('backBtn').addEventListener('click', backHome);
