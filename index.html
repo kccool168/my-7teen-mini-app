@@ -390,6 +390,20 @@
     pollOrderCode = null;
   }
 
+  // The Preparing/Ready steps used to be a blind timer that ran no matter
+  // what — so a customer could see "Ready, your drink is on the way" while
+  // the payment badge still said unconfirmed or not received. Now the prep
+  // timeline only starts once we've actually seen payment go through, so
+  // the two indicators never contradict each other.
+  function beginPreparing(code){
+    setState({ orderStatus: 'preparing' });
+    setTimeout(function(){
+      setState(function(s){
+        return (s.screen === 'confirm' && s.orderCode === code) ? { orderStatus: 'ready' } : {};
+      });
+    }, 4000);
+  }
+
   function startPaymentStatusPolling(code){
     stopPaymentStatusPolling();
     pollOrderCode = code;
@@ -408,6 +422,7 @@
           if (!data || !data.ok) return; // order not found yet / transient error — keep polling
           var status = (data.status === 'paid' || data.status === 'unpaid') ? data.status : 'pending';
           setState({ paymentStatus: status });
+          if (status === 'paid') beginPreparing(pollOrderCode);
           if (status !== 'pending') stopPaymentStatusPolling();
         })
         .catch(function(err){ console.error('Payment status poll failed', err); });
@@ -457,8 +472,10 @@
     sendOrder(orderPayload);
     startPaymentStatusPolling(code);
 
-    setTimeout(function(){ setState(function(s){ return s.screen === 'confirm' ? { orderStatus: 'preparing' } : {}; }); }, 3000);
-    setTimeout(function(){ setState(function(s){ return s.screen === 'confirm' ? { orderStatus: 'ready' } : {}; }); }, 7000);
+    // Note: the Preparing/Ready steps are no longer a blind timer — they
+    // only advance once payment is actually confirmed (see
+    // startPaymentStatusPolling / beginPreparing below), so the prep
+    // timeline never contradicts the real payment status badge.
   }
 
   function sendOrder(payload){
@@ -644,8 +661,13 @@
     var order = ['received','preparing','ready'];
     var idx = order.indexOf(state.orderStatus);
     function stepColor(step){ return order.indexOf(step) <= idx ? ACCENT : 'rgba(43,36,32,.2)'; }
+    // "received" only ever shows while we're still waiting on payment
+    // confirmation (prep can't start until then — see beginPreparing), so
+    // its message should say that rather than implying prep is underway.
     var statusMessages = {
-      received: "We've got your order — sit tight!",
+      received: (state.paymentStatus === 'unpaid')
+        ? "We'll start preparing as soon as payment is confirmed — please check with staff."
+        : "We've got your order — preparing starts once payment is confirmed.",
       preparing: 'Your order is being made fresh.',
       ready: 'Stay calm, your drink is on the way',
     };
