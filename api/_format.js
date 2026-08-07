@@ -59,7 +59,7 @@ export function formatCalendarDateShort(dateStr) {
 
 // Pure calendar-day arithmetic (UTC internally, no real-world instant is
 // involved) so it can never drift a day depending on server timezone.
-function addDaysToDateStr(dateStr, n) {
+export function addDaysToDateStr(dateStr, n) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   dt.setUTCDate(dt.getUTCDate() + n);
@@ -69,12 +69,52 @@ function addDaysToDateStr(dateStr, n) {
   return `${yy}-${mm}-${dd}`;
 }
 
-// Given a start date and a day count, returns the list of consecutive
-// calendar dates the subscription covers, e.g. ['2026-08-10', '2026-08-11', ...].
-export function computeSubDates(startDateStr, days) {
+export function addMonthToDateStr(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCMonth(dt.getUTCMonth() + 1);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(dt.getUTCDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+}
+
+export function dayOfWeekUTC(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+// Clamps a requested subscription start date server-side (defense in depth
+// — never trust the client's date alone): must fall within today..+1 month,
+// and can't be a Sunday (the café doesn't run subscriptions on Sundays —
+// bumped forward to the next valid day, mirroring the client's own clamp).
+export function clampSubStartDate(dateStr, todayStr) {
+  const min = todayStr;
+  const max = addMonthToDateStr(min);
+  let out = (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) ? dateStr : min;
+  if (out < min) out = min;
+  if (out > max) out = max;
+  if (dayOfWeekUTC(out) === 0) {
+    const next = addDaysToDateStr(out, 1);
+    out = next <= max ? next : addDaysToDateStr(out, -1);
+  }
+  return out;
+}
+
+// Given a start date and a *total* day count (paid days + any bonus free
+// days), returns the list of redeemable calendar dates, skipping Sundays —
+// the café doesn't run subscriptions on Sundays, so Sunday never counts as
+// one of the days and the range simply extends further to make up for it.
+export function computeSubDates(startDateStr, totalDays) {
   const out = [];
-  const n = Math.max(1, Math.min(30, parseInt(days, 10) || 0));
-  for (let i = 0; i < n; i++) out.push(addDaysToDateStr(startDateStr, i));
+  const n = Math.max(1, parseInt(totalDays, 10) || 0);
+  let cur = startDateStr;
+  let guard = 0;
+  while (out.length < n && guard < 400) {
+    guard++;
+    if (dayOfWeekUTC(cur) !== 0) out.push(cur);
+    if (out.length < n) cur = addDaysToDateStr(cur, 1);
+  }
   return out;
 }
 
@@ -142,8 +182,10 @@ function subscriptionDrinkLine(order) {
 // which days have already been picked up.
 function subscriptionGroupLines(order) {
   const lines = [subscriptionDrinkLine(order)];
-  const days = order.subDays || (order.subDates ? order.subDates.length : 0);
-  lines.push(`📅 ${esc(formatCalendarDate(order.subStartDate))} → ${esc(formatCalendarDate(order.subValidUntil))} (${days} day${days === 1 ? '' : 's'})`);
+  const bonus = order.subBonusDays || 0;
+  const totalDays = Array.isArray(order.subDates) ? order.subDates.length : ((order.subDays || 0) + bonus);
+  lines.push(`📅 ${esc(formatCalendarDate(order.subStartDate))} → ${esc(formatCalendarDate(order.subValidUntil))} (${totalDays} day${totalDays === 1 ? '' : 's'}${bonus ? `, incl. ${bonus} free` : ''})`);
+  if (bonus > 0) lines.push(`🎁 +${bonus} free day${bonus === 1 ? '' : 's'} from loyalty reward`);
   if (order.status === 'paid' && Array.isArray(order.subDates)) {
     const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates : [];
     const checklist = order.subDates.map((d) => `${formatCalendarDateShort(d)}${redeemed.indexOf(d) !== -1 ? '✅' : '⬜'}`).join('  ');
@@ -265,6 +307,7 @@ function formatSubscriptionReceiptMessage(order) {
   lines.push(customerStatusLine(order));
   lines.push('');
   lines.push(`Your Subscription valid until ${esc(formatCalendarDate(order.subValidUntil))}`);
+  if (order.subBonusDays) lines.push(`🎁 Includes ${order.subBonusDays} free day${order.subBonusDays === 1 ? '' : 's'} from your loyalty reward!`);
   lines.push('');
   lines.push('Thank you for subscribing to 7Teen Café! 💙');
 
