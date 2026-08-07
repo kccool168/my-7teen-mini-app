@@ -3,6 +3,10 @@
     {
       "path": "/api/subscription-expiry-check",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/daily-order-summary",
+      "schedule": "30 23 * * *"
     }
   ]
 }
