@@ -6,10 +6,13 @@
 //  - Regular cart orders (orderType omitted / 'single'): unchanged from
 //    before — stamps, free-cup redemption cap, group + customer receipt.
 //  - Subscription orders (orderType: 'subscription'): a single fixed drink
-//    for N consecutive days starting on a chosen date. No loyalty stamps or
-//    free-cup redemption (that's a separate rewards mechanism); the total is
-//    simply unit price × days, recomputed server-side from the start date
-//    and day count so the client can't tamper with the date range or price.
+//    for N consecutive days (max 6, Sundays never count) starting on a
+//    chosen date. The total is unit price × paid days, recomputed
+//    server-side from the start date and day count so the client can't
+//    tamper with the date range or price. If the customer has an eligible
+//    loyalty free cup banked, it's auto-applied as one bonus (unpaid) day
+//    on top of the paid days — mirrors the free-cup mechanic used for
+//    regular cart orders, just applied automatically instead of a toggle.
 //
 // Both types:
 //  1. Send an order/subscription receipt directly to the customer's
@@ -20,11 +23,11 @@
 //     subscription is paid). The order is stored in Redis (14-day TTL) so
 //     those button taps can look it up and edit both messages.
 import getClient from './_redis.js';
-import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDates } from './_format.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDates, clampSubStartDate, todayInPhnomPenh } from './_format.js';
 
 const STAMPS_NEEDED = 6;
 const ORDER_TTL_SECONDS = 60 * 60 * 24 * 14; // 14 days
-const MAX_SUB_DAYS = 30;
+const MAX_SUB_DAYS = 6;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -67,28 +70,61 @@ export default async function handler(req, res) {
 
   if (isSubscription) {
     // ---- Subscription: recompute the date range + total server-side, never
-    //      trust the client's total or date list. No stamps/redeem logic —
-    //      that's a separate rewards mechanism for one-off cup purchases. ----
+    //      trust the client's total, date list, or day count. ----
     const item = order.items[0];
     const unitPrice = Number(item && item.unitPrice) || 0;
     const subDays = Math.max(1, Math.min(MAX_SUB_DAYS, parseInt(order.subDays, 10) || 0));
-    const subStartDate = typeof order.subStartDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(order.subStartDate)
-      ? order.subStartDate
-      : null;
+    const rawStartDate = typeof order.subStartDate === 'string' ? order.subStartDate : null;
 
-    if (!subStartDate || subDays < 1) {
+    if (!rawStartDate || subDays < 1) {
       return res.status(400).json({ ok: false, error: 'Subscription must include a valid start date and day count' });
     }
 
-    const subDates = computeSubDates(subStartDate, subDays);
+    const today = todayInPhnomPenh();
+    const subStartDate = clampSubStartDate(rawStartDate, today);
+
+    // ---- Loyalty free-cup bonus: if the customer already has a free cup
+    //      banked, it's auto-applied as 1 bonus (unpaid) day on top of the
+    //      paid days — same Redis-backed balance used for regular cart
+    //      orders, just applied automatically rather than via a toggle. ----
+    let bonusDays = 0;
+    let freeCupApplied = false;
+    const subUserId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
+    if (subUserId) {
+      try {
+        const client = await getClient();
+        redisClient = client;
+        const totalKey = `user:${subUserId}:total`;
+        const usedKey = `user:${subUserId}:used`;
+        const [totalStr, usedStr] = await Promise.all([client.get(totalKey), client.get(usedKey)]);
+        const priorTotal = parseInt(totalStr || '0', 10) || 0;
+        const priorUsed = parseInt(usedStr || '0', 10) || 0;
+        const priorAvailable = Math.max(0, Math.floor(priorTotal / STAMPS_NEEDED) - priorUsed);
+        stamps = priorTotal % STAMPS_NEEDED;
+        if (priorAvailable > 0) {
+          bonusDays = 1;
+          freeCupApplied = true;
+          await client.incr(usedKey);
+          freeCups = Math.max(0, priorAvailable - 1);
+        } else {
+          freeCups = 0;
+        }
+      } catch (err) {
+        console.error('Free-cup bonus lookup failed for subscription', err);
+      }
+    }
+
+    const totalDays = subDays + bonusDays;
+    const subDates = computeSubDates(subStartDate, totalDays);
     appliedTotal = Math.round(unitPrice * subDays * 100) / 100;
 
     resolvedOrder = Object.assign({}, order, {
       orderType: 'subscription',
       items: [item],
       subtotal: appliedTotal, discount: 0, total: appliedTotal,
-      redeemedFreeCup: false, remark,
-      subStartDate, subDays, subDates, subValidUntil: subDates[subDates.length - 1],
+      redeemedFreeCup: freeCupApplied, remark,
+      subStartDate, subDays, subBonusDays: bonusDays, subTotalDays: totalDays,
+      subDates, subValidUntil: subDates[subDates.length - 1],
       subRedeemedDates: [],
       status: 'pending', confirmedByName: null,
     });
@@ -228,5 +264,6 @@ export default async function handler(req, res) {
     ok: true, stamps, freeCups, customerNotified, groupNotified,
     discount: appliedDiscount, total: appliedTotal, lastCupPrice,
     subValidUntil: resolvedOrder.subValidUntil || null,
+    subBonusDays: typeof resolvedOrder.subBonusDays === 'number' ? resolvedOrder.subBonusDays : null,
   });
 }
