@@ -17,6 +17,7 @@
 // receipt message in place, so both stay in sync with the real status.
 import getClient from './_redis.js';
 import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh } from './_format.js';
+import { pushStatusToSheet } from './_sheets.js';
 
 const MONTHS = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
@@ -269,6 +270,9 @@ async function resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, confi
 
   await editGroupMessage(BOT_TOKEN, order, newStatus);
   await editCustomerReceipt(BOT_TOKEN, order);
+  // Keep the Google Sheet order log's Status / Confirmed By columns current
+  // too (best-effort — never blocks a status change).
+  await pushStatusToSheet(orderCode, newStatus, confirmedByName);
 
   return order;
 }
