@@ -130,12 +130,14 @@ export function todayInPhnomPenh() {
 }
 
 // Builds the daily consolidated order report sent to the staff group each
-// morning (see api/daily-order-summary.js) — every order placed within a
-// given Phnom Penh calendar day's 1:30 PM–11:59 PM window.
+// morning (see api/daily-order-summary.js) — every order placed from
+// 1:30 PM on the given Phnom Penh calendar day through 6:29 AM the next
+// morning (i.e. right up until this report is sent), so there's no
+// overnight gap between reports.
 export function formatDailySummaryMessage(orders, dateStr) {
   const lines = [];
   lines.push(`📋 <b>Daily Order Summary — ${esc(formatCalendarDate(dateStr))}</b>`);
-  lines.push(`🕐 1:30 PM – 11:59 PM (Cambodia Time)`);
+  lines.push(`🕐 1:30 PM – 6:29 AM next day (Cambodia Time)`);
   lines.push('');
 
   if (!orders.length) {
