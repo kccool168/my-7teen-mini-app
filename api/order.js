@@ -24,6 +24,7 @@
 //     those button taps can look it up and edit both messages.
 import getClient from './_redis.js';
 import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDates, clampSubStartDate, todayInPhnomPenh } from './_format.js';
+import { pushOrderToSheet } from './_sheets.js';
 
 const STAMPS_NEEDED = 6;
 const ORDER_TTL_SECONDS = 60 * 60 * 24 * 14; // 14 days
@@ -251,6 +252,9 @@ export default async function handler(req, res) {
         // matcher (api/telegram-webhook.js) can scan only open orders instead
         // of every order ever placed. Entries are removed once resolved.
         await client.sAdd('pending_orders', resolvedOrder.orderCode);
+        // Log the order to the Google Sheet order log (best-effort — never
+        // blocks or fails the order itself).
+        await pushOrderToSheet(orderRecord);
       } catch (err) {
         console.error('Order status persistence failed (buttons will not work for this order)', err);
       }
