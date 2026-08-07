@@ -58,6 +58,11 @@
   .cat-chip{flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;background:var(--chip-bg);color:var(--chip-text)}
   .cat-chip.active{background:var(--accent);color:#fff}
 
+  .list-toolbar{padding:0 16px 8px;display:flex;justify-content:flex-end}
+  .layout-toggle{display:flex;gap:3px;background:var(--chip-bg);border-radius:12px;padding:3px}
+  .layout-toggle .lt-btn{width:30px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:9px;font-size:14px;cursor:pointer;color:var(--chip-text)}
+  .layout-toggle .lt-btn.active{background:var(--accent);color:#fff}
+
   .item-list{padding:4px 16px 100px;display:flex;flex-direction:column;gap:10px}
   .item-card{display:flex;gap:12px;padding:10px;background:var(--card);border-radius:18px;border:1px solid var(--border)}
   .item-thumb{width:72px;height:72px;border-radius:14px;flex-shrink:0;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 8px,#dceefa 8px,#dceefa 16px);display:flex;align-items:center;justify-content:center;overflow:hidden}
@@ -73,8 +78,19 @@
   .add-btn{flex-shrink:0;align-self:center;width:30px;height:30px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;cursor:pointer}
   .add-btn:active{background:var(--accent-dark)}
 
+  /* Home — grid (horizontal) layout */
+  .item-grid{padding:4px 16px 100px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .grid-card{background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+  .grid-thumb{width:100%;aspect-ratio:1/1;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 8px,#dceefa 8px,#dceefa 16px);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .grid-thumb img{width:100%;height:100%;object-fit:cover}
+  .grid-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line}
+  .grid-info{padding:8px 10px 2px;cursor:pointer;min-width:0}
+  .grid-info .nm{font-weight:800;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .grid-info .pr{font-weight:800;font-size:13px;color:var(--accent);margin-top:3px}
+  .grid-ctrl{padding:6px 10px 10px;display:flex;justify-content:flex-end}
+
   /* Item detail */
-  .item-hero{height:220px;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 10px,#dceefa 10px,#dceefa 20px);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .item-hero{width:100%;aspect-ratio:1/1;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 10px,#dceefa 10px,#dceefa 20px);display:flex;align-items:center;justify-content:center;overflow:hidden}
   .item-hero img{width:100%;height:100%;object-fit:cover}
   .item-hero .lbl{font-family:ui-monospace,monospace;font-size:11px;color:#7fa8c4;white-space:pre-line;text-align:center}
   .detail-body{padding:20px 20px 130px}
@@ -93,6 +109,14 @@
   .qty-row .ctrl{display:flex;align-items:center;gap:14px}
   .qty-row .ctrl .btn{width:30px;height:30px;border-radius:15px;background:var(--info-bg);color:var(--info-text);display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
   .qty-row .ctrl .n{min-width:16px;text-align:center;font-weight:800;font-size:15px}
+
+  .sub-link{margin-top:16px;text-align:center;padding:12px;border-radius:14px;background:var(--info-bg);color:var(--info-text);font-weight:700;font-size:13px;cursor:pointer}
+  .sub-link:active{background:#d9ecf9}
+  .date-input{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--border);background:var(--card);font-family:inherit;font-size:14px;color:var(--text)}
+  .sub-summary{margin-top:20px;padding:14px 16px;background:var(--card);border-radius:16px;border:1px solid var(--border);display:flex;flex-direction:column;gap:6px}
+  .sub-summary .row{display:flex;justify-content:space-between;font-size:13px;color:rgba(43,36,32,.6)}
+  .sub-summary .row.total{font-size:16px;font-weight:800;color:var(--text);margin-top:4px;padding-top:8px;border-top:1px solid rgba(43,36,32,.1)}
+  .pay-sub-summary{margin-top:16px;padding:12px 16px;background:var(--card);border-radius:14px;border:1px solid var(--border);font-size:13px;color:rgba(43,36,32,.7);line-height:1.5}
 
   /* Cart */
   .empty-cart{padding:80px 30px;text-align:center;color:var(--text-soft2)}
@@ -149,8 +173,11 @@
   .pickup-box{margin-top:24px;padding:18px;background:var(--card);border-radius:18px;border:1px dashed rgba(43,36,32,.15)}
   .pickup-box .lbl{font-size:11px;letter-spacing:1px;color:rgba(43,36,32,.45);font-weight:700}
   .pickup-box .code{font-size:28px;font-weight:900;color:var(--accent);letter-spacing:1px;margin-top:4px}
+  .order-time{margin-top:8px;font-size:11.5px;color:var(--text-soft2)}
   .owner-notice{margin-top:14px;display:flex;align-items:center;gap:8px;justify-content:center;font-size:12px;color:var(--info-text);font-weight:700;animation:fadeUp .3s ease}
+  .sub-valid-box{margin-top:14px;padding:12px 16px;border-radius:14px;background:var(--info-bg);color:var(--info-text);font-size:13px;font-weight:600}
   .pay-status{margin-top:14px;padding:10px 16px;border-radius:14px;font-size:12.5px;font-weight:700;display:inline-block;animation:fadeUp .3s ease}
+  .pay-status.accepted{background:#E4F5E9;color:#1E7A46}
   .pay-status.pending{background:var(--info-bg);color:var(--info-text)}
   .pay-status.paid{background:#E4F5E9;color:#1E7A46}
   .pay-status.unpaid{background:#FBEAEA;color:#B23A3A}
@@ -249,12 +276,52 @@
   var ADDON_OPTS = [{ id:'extra', label:'Extra Shot', price:0.25 }];
   var STAMPS_NEEDED = 6;
   var ACCENT = '#1C7FC1';
+  var MAX_SUB_DAYS = 30;
+  var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   function addonPrice(id){ var a = ADDON_OPTS.find(function(x){return x.id===id}); return a ? a.price : 0; }
   function cartKey(id, sugar, addons){ return id + '|' + sugar + '|' + addons.slice().sort().join(','); }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function money(n){ return n.toFixed(2); }
   function absUrl(path){ return new URL(path, location.href).href; }
+
+  // ---- calendar-date helpers (subscriptions) ----
+  // Pure calendar-day arithmetic — deliberately avoids local-timezone Date
+  // parsing quirks, since these are plain "YYYY-MM-DD" days, not instants.
+  function todayDateStr(){
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  function addDaysToDateStr(dateStr, n){
+    var p = dateStr.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    d.setUTCDate(d.getUTCDate() + n);
+    var y = d.getUTCFullYear();
+    var m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    var day = String(d.getUTCDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  function computeEndDateStr(startStr, days){ return addDaysToDateStr(startStr, Math.max(1, days) - 1); }
+  function formatCalendarDate(dateStr){
+    if (!dateStr) return '';
+    var p = dateStr.split('-');
+    if (p.length !== 3) return dateStr;
+    return parseInt(p[2], 10) + ' ' + (MONTH_NAMES[parseInt(p[1], 10) - 1] || '') + ' ' + p[0];
+  }
+  // "DD/MM/YYYY - HH:MM" in Cambodia local time, matching the Telegram
+  // receipt's "Order Time:" formatting.
+  function formatOrderTime(iso){
+    var date = iso ? new Date(iso) : new Date();
+    if (isNaN(date.getTime())) return '';
+    var parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Phnom_Penh', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false,
+    }).formatToParts(date);
+    function get(t){ var f = parts.find(function(p){ return p.type === t; }); return f ? f.value : ''; }
+    return get('day') + '/' + get('month') + '/' + get('year') + ' - ' + get('hour') + ':' + get('minute');
+  }
 
   var tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
 
@@ -265,6 +332,9 @@
     showReceiptNotice: false, rewardMsg: null,
     remark: '', lastCupPrice: null,
     paymentStatus: null,
+    menuLayout: 'vertical',
+    subItemId: null, subSugar: '100%', subAddons: [], subStartDate: '', subDays: 6, subRemark: '',
+    pendingSubscription: null, confirmSubInfo: null, orderTime: null,
   };
 
   function setState(patch){
@@ -304,11 +374,20 @@
   }
 
   // ---- actions ----
-  function backHome(){ setState({ screen: state.screen === 'pay' ? 'cart' : 'home' }); }
+  function backHome(){
+    var s = state.screen;
+    if (s === 'pay'){
+      setState({ screen: state.pendingSubscription ? 'subscribe' : 'cart', pendingSubscription: null });
+      return;
+    }
+    if (s === 'subscribe'){ setState({ screen: 'item' }); return; }
+    setState({ screen: 'home' });
+  }
   function goCart(){ setState({ screen: 'cart' }); }
   function goPay(){ setState({ screen: 'pay' }); }
   function goRewards(){ setState({ screen: 'rewards' }); }
   function setCategory(c){ setState({ category: c }); }
+  function setMenuLayout(v){ setState({ menuLayout: v }); }
   function openItem(id){ setState({ screen: 'item', selectedItemId: id, itemQty: 1, sugar: '100%', addons: [] }); }
   function incItemQty(){ setState(function(s){ return { itemQty: Math.min(9, s.itemQty + 1) }; }); }
   function decItemQty(){ setState(function(s){ return { itemQty: Math.max(1, s.itemQty - 1) }; }); }
@@ -353,6 +432,39 @@
     });
   }
 
+  // ---- subscriptions ----
+  function openSubscribe(){
+    setState({
+      screen: 'subscribe', subItemId: state.selectedItemId,
+      subSugar: state.sugar, subAddons: state.addons,
+      subStartDate: todayDateStr(), subDays: 6, subRemark: '',
+    });
+  }
+  function setSubSugar(v){ setState({ subSugar: v }); }
+  function toggleSubAddon(id){
+    setState(function(s){
+      var has = s.subAddons.indexOf(id) !== -1;
+      return { subAddons: has ? s.subAddons.filter(function(a){ return a !== id; }) : s.subAddons.concat([id]) };
+    });
+  }
+  function incSubDays(){ setState(function(s){ return { subDays: Math.min(MAX_SUB_DAYS, s.subDays + 1) }; }); }
+  function decSubDays(){ setState(function(s){ return { subDays: Math.max(1, s.subDays - 1) }; }); }
+
+  function goSubscriptionPay(){
+    var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
+    var unit = unitPrice(m, state.subSugar, state.subAddons);
+    var days = state.subDays;
+    var validUntil = computeEndDateStr(state.subStartDate, days);
+    setState({
+      pendingSubscription: {
+        item: m, sugar: state.subSugar, addons: state.subAddons, unitPrice: unit,
+        startDate: state.subStartDate, days: days, validUntil: validUntil,
+        total: Math.round(unit * days * 100) / 100, remark: state.subRemark,
+      },
+      screen: 'pay',
+    });
+  }
+
   var QR_ASSET = 'assets/khqr-v2.jpg';
 
   function shareQR(){
@@ -394,7 +506,8 @@
   // what — so a customer could see "Ready, your drink is on the way" while
   // the payment badge still said unconfirmed or not received. Now the prep
   // timeline only starts once we've actually seen payment go through, so
-  // the two indicators never contradict each other.
+  // the two indicators never contradict each other. (Subscriptions don't
+  // use this timeline at all — see renderConfirm.)
   function beginPreparing(code){
     setState({ orderStatus: 'preparing' });
     setTimeout(function(){
@@ -421,8 +534,14 @@
           if (state.screen !== 'confirm' || state.orderCode !== pollOrderCode) return;
           if (!data || !data.ok) return; // order not found yet / transient error — keep polling
           var status = (data.status === 'paid' || data.status === 'unpaid') ? data.status : 'pending';
-          setState({ paymentStatus: status });
-          if (status === 'paid') beginPreparing(pollOrderCode);
+          setState(function(s){
+            var patch = { paymentStatus: status };
+            if (data.orderType === 'subscription' && data.subValidUntil && s.confirmSubInfo){
+              patch.confirmSubInfo = Object.assign({}, s.confirmSubInfo, { validUntil: data.subValidUntil });
+            }
+            return patch;
+          });
+          if (status === 'paid' && data.orderType !== 'subscription') beginPreparing(pollOrderCode);
           if (status !== 'pending') stopPaymentStatusPolling();
         })
         .catch(function(err){ console.error('Payment status poll failed', err); });
@@ -433,11 +552,14 @@
   }
 
   function pay(){
+    if (state.pendingSubscription) return paySubscription(state.pendingSubscription);
+
     var totals = computeTotal();
     var code = '7T-' + Math.floor(400 + Math.random() * 599);
     var cart = state.cart;
     var spentFreeCup = state.redeemFreeCup && state.freeCups > 0 ? 1 : 0;
     var remark = (state.remark || '').trim().slice(0, 50);
+    var timestamp = new Date().toISOString();
 
     var orderPayload = {
       orderCode: code,
@@ -456,7 +578,7 @@
       customer: tgUser ? {
         id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username,
       } : null,
-      timestamp: new Date().toISOString(),
+      timestamp: timestamp,
     };
 
     // Stamps/free cups are now tracked server-side (Redis), keyed by Telegram
@@ -466,7 +588,7 @@
     setState({
       screen: 'confirm', orderCode: code, orderStatus: 'received', cart: {},
       redeemFreeCup: false, showReceiptNotice: false, remark: '',
-      paymentStatus: 'pending',
+      paymentStatus: 'pending', orderTime: timestamp, confirmSubInfo: null,
     });
 
     sendOrder(orderPayload);
@@ -474,8 +596,42 @@
 
     // Note: the Preparing/Ready steps are no longer a blind timer — they
     // only advance once payment is actually confirmed (see
-    // startPaymentStatusPolling / beginPreparing below), so the prep
+    // startPaymentStatusPolling / beginPreparing above), so the prep
     // timeline never contradicts the real payment status badge.
+  }
+
+  function paySubscription(sub){
+    var code = '7T-' + Math.floor(400 + Math.random() * 599);
+    var remark = (sub.remark || '').trim().slice(0, 50);
+    var timestamp = new Date().toISOString();
+
+    var orderPayload = {
+      orderCode: code,
+      orderType: 'subscription',
+      items: [{
+        name: sub.item.name, qty: 1, sugar: sub.sugar,
+        addons: sub.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; }),
+        unitPrice: sub.unitPrice,
+      }],
+      subStartDate: sub.startDate, subDays: sub.days,
+      subtotal: sub.total, discount: 0, total: sub.total,
+      redeemedFreeCup: false,
+      remark: remark,
+      customer: tgUser ? {
+        id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username,
+      } : null,
+      timestamp: timestamp,
+    };
+
+    setState({
+      screen: 'confirm', orderCode: code, orderStatus: 'received',
+      pendingSubscription: null, showReceiptNotice: false,
+      paymentStatus: 'pending', orderTime: timestamp,
+      confirmSubInfo: { validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days, startDate: sub.startDate },
+    });
+
+    sendOrder(orderPayload);
+    startPaymentStatusPolling(code);
   }
 
   function sendOrder(payload){
@@ -490,6 +646,7 @@
         if (typeof data.stamps === 'number') patch.stamps = data.stamps;
         if (typeof data.freeCups === 'number') patch.freeCups = data.freeCups;
         if (typeof data.lastCupPrice === 'number' && !isNaN(data.lastCupPrice)) patch.lastCupPrice = data.lastCupPrice;
+        if (data.subValidUntil && s.confirmSubInfo) patch.confirmSubInfo = Object.assign({}, s.confirmSubInfo, { validUntil: data.subValidUntil });
         return patch;
       });
     }).catch(function(err){ console.error('Order notify failed', err); });
@@ -511,7 +668,50 @@
 
   // ---- render helpers ----
   function screenTitle(){
-    return { home:'7Teen Café', item:'Item', cart:'Your bag', pay:'Payment', confirm:'Order placed', rewards:'Rewards' }[state.screen];
+    return { home:'7Teen Café', item:'Item', cart:'Your bag', pay:'Payment', confirm:'Order placed', rewards:'Rewards', subscribe:'Subscribe' }[state.screen];
+  }
+
+  function renderListCard(m){
+    var key = cartKey(m.id, '100%', []);
+    var entry = state.cart[key];
+    var qty = entry ? entry.qty : 0;
+    var thumb = m.photo
+      ? '<img src="' + esc(m.photo) + '" alt="">'
+      : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+    var ctrl = qty > 0
+      ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
+      : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
+    return '' +
+      '<div class="item-card">' +
+        '<div class="item-thumb" data-open="' + m.id + '">' + thumb + '</div>' +
+        '<div class="item-info" data-open="' + m.id + '">' +
+          '<div class="nm">' + esc(m.name) + '</div>' +
+          '<div class="ds">' + esc(m.desc) + '</div>' +
+          '<div class="pr">$' + money(m.price) + '</div>' +
+        '</div>' +
+        ctrl +
+      '</div>';
+  }
+
+  function renderGridCard(m){
+    var key = cartKey(m.id, '100%', []);
+    var entry = state.cart[key];
+    var qty = entry ? entry.qty : 0;
+    var thumb = m.photo
+      ? '<img src="' + esc(m.photo) + '" alt="">'
+      : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+    var ctrl = qty > 0
+      ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
+      : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
+    return '' +
+      '<div class="grid-card">' +
+        '<div class="grid-thumb" data-open="' + m.id + '">' + thumb + '</div>' +
+        '<div class="grid-info" data-open="' + m.id + '">' +
+          '<div class="nm">' + esc(m.name) + '</div>' +
+          '<div class="pr">$' + money(m.price) + '</div>' +
+        '</div>' +
+        '<div class="grid-ctrl">' + ctrl + '</div>' +
+      '</div>';
   }
 
   function renderHome(){
@@ -521,27 +721,14 @@
     }).join('');
 
     var items = MENU.filter(function(m){ return m.category === state.category; });
-    var itemsHtml = items.map(function(m){
-      var key = cartKey(m.id, '100%', []);
-      var entry = state.cart[key];
-      var qty = entry ? entry.qty : 0;
-      var thumb = m.photo
-        ? '<img src="' + esc(m.photo) + '" alt="">'
-        : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
-      var ctrl = qty > 0
-        ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
-        : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
-      return '' +
-        '<div class="item-card">' +
-          '<div class="item-thumb" data-open="' + m.id + '">' + thumb + '</div>' +
-          '<div class="item-info" data-open="' + m.id + '">' +
-            '<div class="nm">' + esc(m.name) + '</div>' +
-            '<div class="ds">' + esc(m.desc) + '</div>' +
-            '<div class="pr">$' + money(m.price) + '</div>' +
-          '</div>' +
-          ctrl +
-        '</div>';
-    }).join('');
+    var isGrid = state.menuLayout === 'grid';
+    var itemsHtml = items.map(isGrid ? renderGridCard : renderListCard).join('');
+
+    var toolbarHtml = '' +
+      '<div class="list-toolbar"><div class="layout-toggle">' +
+        '<div class="lt-btn' + (isGrid ? '' : ' active') + '" data-layout="vertical" title="List view">☰</div>' +
+        '<div class="lt-btn' + (isGrid ? ' active' : '') + '" data-layout="grid" title="Grid view">▦</div>' +
+      '</div></div>';
 
     return '' +
       '<div class="home-top">' +
@@ -550,7 +737,8 @@
         '<div class="stamp-badge" id="rewardsBtn"><span>☕</span><span class="n">' + state.stamps + '/' + STAMPS_NEEDED + '</span></div>' +
       '</div>' +
       '<div class="cat-row">' + catsHtml + '</div>' +
-      '<div class="item-list">' + itemsHtml + '</div>';
+      toolbarHtml +
+      (isGrid ? '<div class="item-grid">' + itemsHtml + '</div>' : '<div class="item-list">' + itemsHtml + '</div>');
   }
 
   function renderItem(){
@@ -571,6 +759,7 @@
     }).join('');
 
     var unit = unitPrice(m, state.sugar, state.addons);
+    var subscribeHtml = isDrink ? '<div class="sub-link" id="subscribeLink">📅 Subscribe for daily drinks</div>' : '';
 
     return '' +
       '<div class="item-hero">' + hero + '</div>' +
@@ -583,6 +772,55 @@
         '<div class="qty-row"><div class="lbl">Quantity</div><div class="ctrl">' +
           '<div class="btn" id="itemDec">–</div><div class="n">' + state.itemQty + '</div><div class="btn" id="itemInc">+</div>' +
         '</div></div>' +
+        subscribeHtml +
+      '</div>';
+  }
+
+  function renderSubscribe(){
+    var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
+    var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
+    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+
+    var sugarHtml = isDrink ? (
+      '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
+      SUGAR_OPTS.map(function(sg){
+        return '<div class="sugar-chip' + (sg === state.subSugar ? ' active' : '') + '" data-sub-sugar="' + sg + '">' + sg + '</div>';
+      }).join('') + '</div>'
+    ) : '';
+
+    var addonsHtml = ADDON_OPTS.map(function(ad){
+      var active = state.subAddons.indexOf(ad.id) !== -1;
+      return '<div class="addon-chip' + (active ? ' active' : '') + '" data-sub-addon="' + ad.id + '">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>';
+    }).join('');
+
+    var unit = unitPrice(m, state.subSugar, state.subAddons);
+    var days = state.subDays;
+    var total = Math.round(unit * days * 100) / 100;
+    var validUntil = computeEndDateStr(state.subStartDate, days);
+
+    var remarkHtml = '' +
+      '<div class="remark-box">' +
+        '<div class="remark-label"><span>Order remark</span><span class="count" id="subRemarkCount">' + state.subRemark.length + '/50</span></div>' +
+        '<textarea id="subRemarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.subRemark) + '</textarea>' +
+      '</div>';
+
+    return '' +
+      '<div class="item-hero">' + hero + '</div>' +
+      '<div class="detail-body">' +
+        '<div class="nm">Subscribe · ' + esc(m.name) + '</div>' +
+        '<div class="pr">$' + money(unit) + '/day</div>' +
+        sugarHtml +
+        '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' +
+        '<div class="sec-label">Start date</div>' +
+        '<input type="date" class="date-input" id="subStartInput" value="' + esc(state.subStartDate) + '" min="' + todayDateStr() + '">' +
+        '<div class="qty-row"><div class="lbl">Number of days</div><div class="ctrl">' +
+          '<div class="btn" id="subDaysDec">–</div><div class="n">' + days + '</div><div class="btn" id="subDaysInc">+</div>' +
+        '</div></div>' +
+        '<div class="sub-summary">' +
+          '<div class="row"><span>Valid</span><span>' + esc(formatCalendarDate(state.subStartDate)) + ' → ' + esc(formatCalendarDate(validUntil)) + '</span></div>' +
+          '<div class="row total"><span>Total</span><span>$' + money(total) + '</span></div>' +
+        '</div>' +
+        remarkHtml +
       '</div>';
   }
 
@@ -642,7 +880,15 @@
   }
 
   function renderPay(){
-    var totals = computeTotal();
+    var sub = state.pendingSubscription;
+    var totalVal = sub ? sub.total : computeTotal().total;
+    var subSummary = sub ? (
+      '<div class="pay-sub-summary">' +
+        esc(sub.item.name) + ' × ' + sub.days + ' day' + (sub.days === 1 ? '' : 's') + '<br>' +
+        esc(formatCalendarDate(sub.startDate)) + ' → ' + esc(formatCalendarDate(sub.validUntil)) +
+      '</div>'
+    ) : '';
+
     return '' +
       '<div class="pay-wrap">' +
         '<div class="t1">Scan to pay</div>' +
@@ -651,13 +897,15 @@
         '<div class="qr-actions">' +
           '<div class="qbtn" id="qrShareBtn"><span>📤</span><span>Share QR to Pay with Canadia Bank</span></div>' +
         '</div>' +
+        subSummary +
         '<div class="due-lbl">Amount due</div>' +
-        '<div class="due-val">$' + money(totals.total) + '</div>' +
+        '<div class="due-val">$' + money(totalVal) + '</div>' +
         '<div class="pay-note">Open your banking app, scan the code, then tap "I\'ve Paid" below to confirm.</div>' +
       '</div>';
   }
 
   function renderConfirm(){
+    var isSub = !!state.confirmSubInfo;
     var order = ['received','preparing','ready'];
     var idx = order.indexOf(state.orderStatus);
     function stepColor(step){ return order.indexOf(step) <= idx ? ACCENT : 'rgba(43,36,32,.2)'; }
@@ -676,31 +924,51 @@
 
     // Live payment status, cross-checked against the same record staff use
     // (manual "Mark Paid" taps or automatic bank-notification matching) —
-    // not just the cosmetic Received/Preparing/Ready timer below.
+    // not just the cosmetic Received/Preparing/Ready timer below. Uses the
+    // simplified 3-state wording: Order Accepted (always) + Payment
+    // Pending / Payment Done / Payment Not Received.
     var payStatusText = {
-      pending: '⏳ Awaiting payment confirmation',
-      paid: '✅ Payment confirmed',
-      unpaid: '⚠️ Payment not received — please show this screen to staff',
+      pending: '🟡 Payment Pending',
+      paid: '✅ Payment Done',
+      unpaid: '⚠️ Payment Not Received — please show this screen to staff',
     }[state.paymentStatus] || '';
     var payStatusHtml = payStatusText
       ? '<div class="pay-status ' + esc(state.paymentStatus) + '">' + esc(payStatusText) + '</div>' : '';
 
+    var orderTimeHtml = state.orderTime
+      ? '<div class="order-time">Order Time: ' + esc(formatOrderTime(state.orderTime)) + '</div>' : '';
+
+    var subHtml = isSub
+      ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b></div>'
+      : '';
+
+    // Subscriptions don't go through a "prep timer" — there's no single cup
+    // being made right now, staff redeem one day at a time over the whole
+    // period — so the steps/status-msg timeline is only shown for regular
+    // cart orders.
+    var timelineHtml = isSub ? '' : (
+      '<div class="steps">' +
+        '<div class="step"><div class="dot" style="background:' + stepColor('received') + '">1</div><div class="lbl" style="color:' + (idx>=0?'#2B2420':'rgba(43,36,32,.4)') + '">Received</div></div>' +
+        '<div class="step-line"><div class="bar" style="background:' + (idx>=1?ACCENT:'rgba(43,36,32,.15)') + '"></div></div>' +
+        '<div class="step"><div class="dot" style="background:' + stepColor('preparing') + '">2</div><div class="lbl" style="color:' + (idx>=1?'#2B2420':'rgba(43,36,32,.4)') + '">Preparing</div></div>' +
+        '<div class="step-line"><div class="bar" style="background:' + (idx>=2?ACCENT:'rgba(43,36,32,.15)') + '"></div></div>' +
+        '<div class="step"><div class="dot" style="background:' + stepColor('ready') + '">3</div><div class="lbl" style="color:' + (idx>=2?'#2B2420':'rgba(43,36,32,.4)') + '">Ready</div></div>' +
+      '</div>' +
+      '<div class="status-msg">' + esc(statusMessages[state.orderStatus]) + '</div>'
+    );
+
     return '' +
       '<div class="confirm-wrap">' +
         '<div class="check">✓</div>' +
-        '<div class="t1">Order placed!</div>' +
-        '<div class="t2">Your drinks is on the way, stay calm!</div>' +
-        '<div class="pickup-box"><div class="lbl">PICKUP CODE</div><div class="code">' + esc(state.orderCode || '') + '</div></div>' +
+        '<div class="t1">' + (isSub ? 'Subscription placed!' : 'Order placed!') + '</div>' +
+        '<div class="t2">' + (isSub ? 'Show this screen to staff to redeem each day.' : 'Your drinks is on the way, stay calm!') + '</div>' +
+        '<div class="pickup-box"><div class="lbl">INV. ID</div><div class="code">' + esc(state.orderCode || '') + '</div></div>' +
+        orderTimeHtml +
+        subHtml +
         receiptNotice +
+        '<div class="pay-status accepted">✅ Order Accepted</div>' +
         payStatusHtml +
-        '<div class="steps">' +
-          '<div class="step"><div class="dot" style="background:' + stepColor('received') + '">1</div><div class="lbl" style="color:' + (idx>=0?'#2B2420':'rgba(43,36,32,.4)') + '">Received</div></div>' +
-          '<div class="step-line"><div class="bar" style="background:' + (idx>=1?ACCENT:'rgba(43,36,32,.15)') + '"></div></div>' +
-          '<div class="step"><div class="dot" style="background:' + stepColor('preparing') + '">2</div><div class="lbl" style="color:' + (idx>=1?'#2B2420':'rgba(43,36,32,.4)') + '">Preparing</div></div>' +
-          '<div class="step-line"><div class="bar" style="background:' + (idx>=2?ACCENT:'rgba(43,36,32,.15)') + '"></div></div>' +
-          '<div class="step"><div class="dot" style="background:' + stepColor('ready') + '">3</div><div class="lbl" style="color:' + (idx>=2?'#2B2420':'rgba(43,36,32,.4)') + '">Ready</div></div>' +
-        '</div>' +
-        '<div class="status-msg">' + esc(statusMessages[state.orderStatus]) + '</div>' +
+        timelineHtml +
       '</div>';
   }
 
@@ -727,6 +995,7 @@
     var html = '';
     if (state.screen === 'home') html = renderHome();
     else if (state.screen === 'item') html = renderItem();
+    else if (state.screen === 'subscribe') html = renderSubscribe();
     else if (state.screen === 'cart') html = renderCart();
     else if (state.screen === 'pay') html = renderPay();
     else if (state.screen === 'confirm') html = renderConfirm();
@@ -734,7 +1003,7 @@
     content.innerHTML = html;
 
     document.getElementById('headerTitle').textContent = screenTitle();
-    var showBack = ['item','cart','rewards','pay'].indexOf(state.screen) !== -1;
+    var showBack = ['item','cart','rewards','pay','subscribe'].indexOf(state.screen) !== -1;
     var showClose = state.screen === 'confirm';
     document.getElementById('backBtn').className = 'back-btn' + (showBack ? ' show' : '');
     document.getElementById('closeBtn').className = 'close-btn' + (showClose ? ' show' : '');
@@ -757,13 +1026,18 @@
 
   // ---- main button (Telegram native, fallback custom) ----
   function updateMainButton(){
-    var showMain = ['item','cart','pay'].indexOf(state.screen) !== -1;
+    var showMain = ['item','cart','pay','subscribe'].indexOf(state.screen) !== -1;
     var label, action;
     if (state.screen === 'item'){
       var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
       var unit = unitPrice(m, state.sugar, state.addons);
       label = 'Add to bag · $' + money(unit * state.itemQty);
       action = addToCart;
+    } else if (state.screen === 'subscribe'){
+      var sm = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
+      var sunit = unitPrice(sm, state.subSugar, state.subAddons);
+      label = 'Subscribe · $' + money(sunit * state.subDays);
+      action = goSubscriptionPay;
     } else if (state.screen === 'cart'){
       var totals = computeTotal();
       var keys = Object.keys(state.cart);
@@ -811,6 +1085,9 @@
     content.querySelectorAll('[data-cat]').forEach(function(el){
       el.addEventListener('click', function(){ setCategory(el.getAttribute('data-cat')); });
     });
+    content.querySelectorAll('[data-layout]').forEach(function(el){
+      el.addEventListener('click', function(){ setMenuLayout(el.getAttribute('data-layout')); });
+    });
     content.querySelectorAll('[data-open]').forEach(function(el){
       el.addEventListener('click', function(){ openItem(el.getAttribute('data-open')); });
     });
@@ -830,6 +1107,32 @@
     if (itemInc) itemInc.addEventListener('click', incItemQty);
     var itemDec = document.getElementById('itemDec');
     if (itemDec) itemDec.addEventListener('click', decItemQty);
+
+    var subscribeLink = document.getElementById('subscribeLink');
+    if (subscribeLink) subscribeLink.addEventListener('click', openSubscribe);
+
+    content.querySelectorAll('[data-sub-sugar]').forEach(function(el){
+      el.addEventListener('click', function(){ setSubSugar(el.getAttribute('data-sub-sugar')); });
+    });
+    content.querySelectorAll('[data-sub-addon]').forEach(function(el){
+      el.addEventListener('click', function(){ toggleSubAddon(el.getAttribute('data-sub-addon')); });
+    });
+    var subStartInput = document.getElementById('subStartInput');
+    if (subStartInput) subStartInput.addEventListener('change', function(e){ setState({ subStartDate: e.target.value }); });
+    var subDaysInc = document.getElementById('subDaysInc');
+    if (subDaysInc) subDaysInc.addEventListener('click', incSubDays);
+    var subDaysDec = document.getElementById('subDaysDec');
+    if (subDaysDec) subDaysDec.addEventListener('click', decSubDays);
+    var subRemarkInput = document.getElementById('subRemarkInput');
+    if (subRemarkInput){
+      subRemarkInput.addEventListener('input', function(e){
+        var v = e.target.value.slice(0, 50);
+        if (v !== e.target.value) e.target.value = v;
+        state.subRemark = v;
+        var counter = document.getElementById('subRemarkCount');
+        if (counter) counter.textContent = v.length + '/50';
+      });
+    }
 
     content.querySelectorAll('[data-cart-inc]').forEach(function(el){
       el.addEventListener('click', function(){
@@ -874,7 +1177,7 @@
   // ---- Telegram BackButton wiring ----
   function updateTgBackButton(){
     if (!tg || !tg.BackButton) return;
-    var showBack = ['item','cart','rewards','pay'].indexOf(state.screen) !== -1;
+    var showBack = ['item','cart','rewards','pay','subscribe'].indexOf(state.screen) !== -1;
     if (showBack) tg.BackButton.show(); else tg.BackButton.hide();
   }
   var origSetState = setState;
