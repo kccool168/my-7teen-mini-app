@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/subscription-expiry-check",
-      "schedule": "0 2 * * *"
+      "schedule": "0 10 * * *"
     },
     {
       "path": "/api/daily-order-summary",
