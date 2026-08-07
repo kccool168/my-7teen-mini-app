@@ -1,8 +1,8 @@
 // Vercel serverless function: GET /api/order-status?code=<order code>
-// Looks up an order's payment status (pending / paid / unpaid) from Redis.
-// Mainly useful for verifying the Mark Paid / Not Received buttons are
-// working, or for spot-checking a specific order's status by its pickup
-// code (e.g. "7T-512").
+// Looks up an order's payment status (pending / paid / unpaid) from Redis,
+// plus subscription details when relevant. Used by the Mini App's confirm
+// screen to live-poll the real status, and for spot-checking an order by
+// its Inv. ID (e.g. "7T-512").
 import getClient from './_redis.js';
 
 export default async function handler(req, res) {
@@ -31,6 +31,12 @@ export default async function handler(req, res) {
       confirmedByName: order.confirmedByName || null,
       confirmedAt: order.confirmedAt || null,
       timestamp: order.timestamp,
+      orderType: order.orderType || 'single',
+      subStartDate: order.subStartDate || null,
+      subDays: order.subDays || null,
+      subValidUntil: order.subValidUntil || null,
+      subDates: order.subDates || null,
+      subRedeemedDates: order.subRedeemedDates || null,
     });
   } catch (err) {
     console.error('Order status lookup failed', err);
