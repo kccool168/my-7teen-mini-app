@@ -2,9 +2,11 @@
 //
 // Runs once a day via Vercel Cron (see vercel.json — scheduled 23:30 UTC,
 // i.e. 6:30 AM the next day in Cambodia time). Consolidates every order
-// placed "yesterday" (Phnom Penh calendar day) between 1:30 PM and 11:59 PM,
-// and sends the list to the staff Telegram group (GROUP_CHAT_ID) — the same
-// group that already gets individual order/payment notifications.
+// placed from 1:30 PM (Phnom Penh calendar "yesterday") through 6:29 AM the
+// morning of the run itself — covering the overnight gap right up until
+// this cron fires — and sends the list to the staff Telegram group
+// (GROUP_CHAT_ID) — the same group that already gets individual
+// order/payment notifications.
 //
 // Orders are read from Redis (order:* — 14-day TTL, see order.js), so this
 // only works if the cron actually runs within a day or so of the window it's
@@ -45,10 +47,13 @@ export default async function handler(req, res) {
   // This cron fires at 6:30 AM Cambodia time — the day being summarized is
   // always "yesterday" relative to right now.
   const targetDate = addDaysToDateStr(todayInPhnomPenh(), -1);
-  // 1:30 PM–11:59:59 PM ICT (UTC+7) == 06:30:00–16:59:59 UTC the same
-  // calendar date, since Cambodia has no DST.
+  // 1:30 PM (targetDate) – 6:29:59 AM the next morning, ICT (UTC+7), ==
+  // 06:30:00–23:29:59 UTC on targetDate itself, since Cambodia has no DST.
+  // (23:29:59 UTC on targetDate is exactly 6:29:59 AM ICT the next day —
+  // one minute before this cron fires at 23:30 UTC / 6:30 AM ICT — so the
+  // window runs right up to the moment the summary is sent, with no gap.)
   const windowStart = new Date(`${targetDate}T06:30:00.000Z`).getTime();
-  const windowEnd = new Date(`${targetDate}T16:59:59.999Z`).getTime();
+  const windowEnd = new Date(`${targetDate}T23:29:59.999Z`).getTime();
 
   const matched = [];
   try {
