@@ -3,18 +3,20 @@
 // Telegram calls this for every update the bot is subscribed to. We handle
 // two kinds:
 //
-//  1. callback_query — staff tapped "Mark Paid" / "Not Received" under an
-//     order report in the staff group.
+//  1. callback_query — staff tapped a button under an order/subscription
+//     report in the staff group: "Mark Paid" / "Not Received", or (for paid
+//     subscriptions) "Redeem Today".
 //  2. message — a plain message arrived in some group the bot belongs to.
 //     We only act on it if it's from the designated bank-notification group
 //     (BANK_NOTIFY_CHAT_ID) and looks like a Canadia Bank payment alert; if
 //     it matches exactly one still-open order by amount and time, that
 //     order is auto-confirmed the same way a manual tap would.
 //
-// Both paths funnel through resolveOrderStatus(), which updates Redis and
-// edits the original group message in place.
+// Payment-status changes funnel through resolveOrderStatus(), which updates
+// Redis and edits both the staff group message and the customer's own
+// receipt message in place, so both stay in sync with the real status.
 import getClient from './_redis.js';
-import { formatGroupMessage, groupKeyboard } from './_format.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh } from './_format.js';
 
 const MONTHS = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4, JUN: 5,
@@ -72,7 +74,7 @@ export default async function handler(req, res) {
   return res.status(200).end();
 }
 
-// ---- Manual "Mark Paid" / "Not Received" button taps ----
+// ---- Button taps: "Mark Paid" / "Not Received" / "Redeem Today" ----
 
 async function handleCallback(cq, BOT_TOKEN) {
   const data = String(cq.data || '');
@@ -80,7 +82,7 @@ async function handleCallback(cq, BOT_TOKEN) {
   const action = sep === -1 ? data : data.slice(0, sep);
   const orderCode = sep === -1 ? '' : data.slice(sep + 1);
 
-  if (!orderCode || (action !== 'paid' && action !== 'unpaid')) {
+  if (!orderCode) {
     return answerCallback(BOT_TOKEN, cq.id, 'Unrecognized action');
   }
 
@@ -92,12 +94,21 @@ async function handleCallback(cq, BOT_TOKEN) {
     return answerCallback(BOT_TOKEN, cq.id, 'Could not reach the database — try again shortly.');
   }
 
-  const confirmedByName = [cq.from && cq.from.first_name, cq.from && cq.from.last_name]
+  const staffName = [cq.from && cq.from.first_name, cq.from && cq.from.last_name]
     .filter(Boolean).join(' ') || (cq.from && cq.from.username) || 'Staff';
+
+  if (action === 'subredeem') {
+    const result = await redeemSubscriptionDay(client, BOT_TOKEN, orderCode, staffName);
+    return answerCallback(BOT_TOKEN, cq.id, result.message, result.alert);
+  }
+
+  if (action !== 'paid' && action !== 'unpaid') {
+    return answerCallback(BOT_TOKEN, cq.id, 'Unrecognized action');
+  }
 
   const newStatus = action === 'paid' ? 'paid' : 'unpaid';
   // A manual tap always overrides any prior auto-confirmation.
-  const order = await resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, confirmedByName, { bankRef: null });
+  const order = await resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, staffName, { bankRef: null });
   if (!order) {
     return answerCallback(BOT_TOKEN, cq.id, 'Order not found (it may have expired after 14 days).');
   }
@@ -108,12 +119,12 @@ async function handleCallback(cq, BOT_TOKEN) {
   );
 }
 
-async function answerCallback(BOT_TOKEN, callbackQueryId, text) {
+async function answerCallback(BOT_TOKEN, callbackQueryId, text, showAlert) {
   try {
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ callback_query_id: callbackQueryId, text, show_alert: false }),
+      body: JSON.stringify({ callback_query_id: callbackQueryId, text, show_alert: !!showAlert }),
     });
   } catch (err) {
     console.error('answerCallbackQuery failed', err);
@@ -222,7 +233,8 @@ function amountsMatch(a, b) {
   return diff <= tolerance;
 }
 
-// ---- Shared: apply a status change and edit the group message ----
+// ---- Shared: apply a status change, edit the group message, and edit the
+//      customer's own receipt message so both stay in sync. ----
 
 async function resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, confirmedByName, extra) {
   const key = `order:${orderCode}`;
@@ -248,26 +260,101 @@ async function resolveOrderStatus(client, BOT_TOKEN, orderCode, newStatus, confi
   await client.set(key, JSON.stringify(order), setOpts);
   await client.sRem('pending_orders', orderCode);
 
-  const newText = formatGroupMessage(order);
-  const chatId = order.chatId;
-  const messageId = order.messageId;
-
-  if (chatId != null && messageId != null) {
-    try {
-      const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId, message_id: messageId, text: newText, parse_mode: 'HTML',
-          reply_markup: groupKeyboard(orderCode, newStatus),
-        }),
-      });
-      const editData = await editRes.json();
-      if (!editRes.ok || !editData.ok) console.error('editMessageText failed', editData);
-    } catch (err) {
-      console.error('editMessageText error', err);
-    }
+  // Paid subscriptions get tracked separately so the daily expiry check
+  // only has to scan active subscriptions, not every order ever placed.
+  if (order.orderType === 'subscription') {
+    if (newStatus === 'paid') await client.sAdd('active_subscriptions', orderCode);
+    else await client.sRem('active_subscriptions', orderCode);
   }
 
+  await editGroupMessage(BOT_TOKEN, order, newStatus);
+  await editCustomerReceipt(BOT_TOKEN, order);
+
   return order;
+}
+
+async function editGroupMessage(BOT_TOKEN, order, status) {
+  const chatId = order.chatId;
+  const messageId = order.messageId;
+  if (chatId == null || messageId == null) return;
+  try {
+    const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId, message_id: messageId, text: formatGroupMessage(order), parse_mode: 'HTML',
+        reply_markup: groupKeyboard(order.orderCode, status, order.orderType),
+      }),
+    });
+    const editData = await editRes.json();
+    if (!editRes.ok || !editData.ok) console.error('editMessageText (group) failed', editData);
+  } catch (err) {
+    console.error('editMessageText (group) error', err);
+  }
+}
+
+// Keeps the customer's own receipt message current too, so "Payment
+// Pending" flips to "Payment Done" (or "Payment Not Received") right in
+// their chat, not just on the staff side.
+async function editCustomerReceipt(BOT_TOKEN, order) {
+  const chatId = order.customerChatId;
+  const messageId = order.customerMessageId;
+  if (chatId == null || messageId == null) return;
+  try {
+    const text = formatReceiptMessage(order, order.stamps || 0, order.freeCups || 0, order.stampsNeeded || 6);
+    const editRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML' }),
+    });
+    const editData = await editRes.json();
+    if (!editRes.ok || !editData.ok) console.error('editMessageText (receipt) failed', editData);
+  } catch (err) {
+    console.error('editMessageText (receipt) error', err);
+  }
+}
+
+// ---- "Redeem Today" — marks today's pickup for a paid subscription ----
+
+async function redeemSubscriptionDay(client, BOT_TOKEN, orderCode) {
+  const key = `order:${orderCode}`;
+  const raw = await client.get(key);
+  if (!raw) return { message: 'Order not found (it may have expired after 14 days).', alert: true };
+
+  let order;
+  try {
+    order = JSON.parse(raw);
+  } catch (err) {
+    console.error('Corrupt order record', orderCode, err);
+    return { message: 'Something went wrong reading this subscription.', alert: true };
+  }
+
+  if (order.orderType !== 'subscription') {
+    return { message: 'This is not a subscription order.', alert: true };
+  }
+  if (order.status !== 'paid') {
+    return { message: 'Payment must be confirmed before redeeming.', alert: true };
+  }
+
+  const today = todayInPhnomPenh();
+  const dates = Array.isArray(order.subDates) ? order.subDates : [];
+  if (dates.indexOf(today) === -1) {
+    return { message: 'Today is outside this subscription\'s date range.', alert: true };
+  }
+
+  const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates.slice() : [];
+  if (redeemed.indexOf(today) !== -1) {
+    return { message: 'Already redeemed for today ✅', alert: false };
+  }
+
+  redeemed.push(today);
+  order.subRedeemedDates = redeemed;
+
+  const ttl = await client.ttl(key);
+  const setOpts = ttl && ttl > 0 ? { EX: ttl } : {};
+  await client.set(key, JSON.stringify(order), setOpts);
+
+  await editGroupMessage(BOT_TOKEN, order, order.status);
+
+  return { message: 'Redeemed for today! ☕', alert: false };
 }
