@@ -129,6 +129,76 @@ export function todayInPhnomPenh() {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+// Builds the daily consolidated order report sent to the staff group each
+// morning (see api/daily-order-summary.js) — every order placed within a
+// given Phnom Penh calendar day's 1:30 PM–11:59 PM window.
+export function formatDailySummaryMessage(orders, dateStr) {
+  const lines = [];
+  lines.push(`📋 <b>Daily Order Summary — ${esc(formatCalendarDate(dateStr))}</b>`);
+  lines.push(`🕐 1:30 PM – 11:59 PM (Cambodia Time)`);
+  lines.push('');
+
+  if (!orders.length) {
+    lines.push('No orders were placed in this window.');
+    return lines.join('\n');
+  }
+
+  let paidTotal = 0;
+  orders.forEach((order, i) => {
+    const isSub = order.orderType === 'subscription';
+    const itemsSummary = Array.isArray(order.items)
+      ? order.items.map((item) => `${item.qty}x ${esc(item.name)}`).join(', ')
+      : '';
+    const custObj = order.customer || {};
+    const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
+    const statusIcon = order.status === 'paid' ? '✅ Paid' : order.status === 'unpaid' ? '❌ Not received' : '⏳ Pending';
+    const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d)` : '';
+    lines.push(`${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}${typeTag} — $${money(order.total)} — ${statusIcon}`);
+    if (order.status === 'paid') paidTotal += Number(order.total) || 0;
+  });
+
+  lines.push('');
+  lines.push(`Total orders: ${orders.length}`);
+  lines.push(`Total revenue (paid): $${money(paidTotal)}`);
+
+  return lines.join('\n');
+}
+
+// Shapes an internal order record into the flat object the Google Sheets
+// order-log sync (Apps Script Web App) expects — one row per order across
+// the sheet's 15 columns. Shared by api/all-orders.js (bulk historical
+// export) and the per-order sync calls from api/order.js and
+// api/telegram-webhook.js, so every path produces identically-shaped rows.
+export function orderToSheetRow(order) {
+  const customerObj = order.customer || {};
+  const name = [customerObj.firstName, customerObj.lastName].filter(Boolean).join(' ');
+  const itemsSummary = Array.isArray(order.items)
+    ? order.items.map((item) => `${item.qty}x ${item.name}`).join(', ')
+    : '';
+  let confirmedBy = order.confirmedByName || '';
+  if (!confirmedBy && order.bankRef) {
+    confirmedBy = order.bankPayer ? `Bank (${order.bankPayer})` : 'Bank auto-confirm';
+  }
+  const isSub = order.orderType === 'subscription';
+  return {
+    orderCode: order.orderCode || '',
+    orderType: isSub ? 'Subscription' : 'Single',
+    dateTime: formatTimestamp(order.timestamp),
+    customer: name,
+    username: customerObj.username ? `@${customerObj.username}` : '',
+    items: itemsSummary,
+    subtotal: money(order.subtotal),
+    discount: money(order.discount),
+    total: money(order.total),
+    status: order.status || '',
+    confirmedBy,
+    remark: order.remark || '',
+    subStartDate: isSub && order.subStartDate ? formatCalendarDate(order.subStartDate) : '',
+    subValidUntil: isSub && order.subValidUntil ? formatCalendarDate(order.subValidUntil) : '',
+    subDays: isSub ? (order.subDays || '') : '',
+  };
+}
+
 export function itemLines(order) {
   return order.items.map((item) => {
     const details = [];
