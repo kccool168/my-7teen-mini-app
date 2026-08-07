@@ -101,9 +101,15 @@
   .sugar-row{display:flex;gap:6px}
   .sugar-chip{flex:1;text-align:center;padding:10px 4px;border-radius:14px;cursor:pointer;background:var(--chip-bg);color:var(--chip-text);font-size:12.5px;font-weight:700}
   .sugar-chip.active{background:var(--accent);color:#fff}
-  .addon-row{display:flex;gap:8px;flex-wrap:wrap}
+  .addon-row{display:flex;flex-direction:column;gap:8px}
   .addon-chip{padding:9px 14px;border-radius:14px;cursor:pointer;font-size:12.5px;font-weight:700;background:var(--chip-bg);color:var(--chip-text)}
   .addon-chip.active{background:var(--accent);color:#fff}
+  .addon-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:14px;background:var(--chip-bg)}
+  .addon-item .lbl{font-size:12.5px;font-weight:700;color:var(--chip-text)}
+  .addon-item .ctrl{display:flex;align-items:center;gap:10px}
+  .addon-item .ctrl .btn{width:24px;height:24px;border-radius:12px;background:var(--card);color:var(--chip-text);display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
+  .addon-item .ctrl .n{min-width:14px;text-align:center;font-weight:800;font-size:13px}
+  .date-hint{font-size:11.5px;color:var(--text-soft2);margin-top:6px}
   .qty-row{display:flex;align-items:center;justify-content:space-between;margin-top:24px;padding:14px 16px;background:var(--card);border-radius:16px;border:1px solid var(--border)}
   .qty-row .lbl{font-weight:700;font-size:14px}
   .qty-row .ctrl{display:flex;align-items:center;gap:14px}
@@ -276,11 +282,25 @@
   var ADDON_OPTS = [{ id:'extra', label:'Extra Shot', price:0.25 }];
   var STAMPS_NEEDED = 6;
   var ACCENT = '#1C7FC1';
-  var MAX_SUB_DAYS = 30;
+  var MAX_SUB_DAYS = 6;
   var MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   function addonPrice(id){ var a = ADDON_OPTS.find(function(x){return x.id===id}); return a ? a.price : 0; }
-  function cartKey(id, sugar, addons){ return id + '|' + sugar + '|' + addons.slice().sort().join(','); }
+  // Add-ons are now a { id: qty } map instead of a plain array of ids, so a
+  // customer can add more than one of the same add-on (e.g. 2× Extra Shot).
+  function addonsKeyPart(addons){
+    return Object.keys(addons || {}).filter(function(id){ return (addons[id] || 0) > 0; })
+      .sort().map(function(id){ return id + ':' + addons[id]; }).join(',');
+  }
+  function addonLabels(addons){
+    return Object.keys(addons || {}).filter(function(id){ return (addons[id] || 0) > 0; }).map(function(id){
+      var ad = ADDON_OPTS.find(function(x){ return x.id === id; });
+      var label = ad ? ad.label : id;
+      var qty = addons[id];
+      return qty > 1 ? (label + ' x' + qty) : label;
+    });
+  }
+  function cartKey(id, sugar, addons){ return id + '|' + sugar + '|' + addonsKeyPart(addons); }
   function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
   function money(n){ return n.toFixed(2); }
   function absUrl(path){ return new URL(path, location.href).href; }
@@ -304,7 +324,52 @@
     var day = String(d.getUTCDate()).padStart(2, '0');
     return y + '-' + m + '-' + day;
   }
-  function computeEndDateStr(startStr, days){ return addDaysToDateStr(startStr, Math.max(1, days) - 1); }
+  // Subscriptions don't run on Sundays — Sunday never counts as one of the
+  // redeemable days. If the range would land on a Sunday it's skipped and
+  // the range simply extends one day further, so the customer still gets
+  // every day they paid (or were rewarded) for.
+  function isSundayDateStr(dateStr){
+    var p = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() === 0;
+  }
+  function computeSubDatesExcludingSunday(startStr, totalDays){
+    var out = [];
+    var cur = startStr;
+    var guard = 0;
+    while (out.length < totalDays && guard < 400){
+      guard++;
+      if (!isSundayDateStr(cur)) out.push(cur);
+      if (out.length < totalDays) cur = addDaysToDateStr(cur, 1);
+    }
+    return out;
+  }
+  function computeSubValidUntil(startStr, totalDays){
+    var dates = computeSubDatesExcludingSunday(startStr, totalDays);
+    return dates.length ? dates[dates.length - 1] : startStr;
+  }
+  function addMonthToDateStr(dateStr){
+    var p = dateStr.split('-').map(Number);
+    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    var y = d.getUTCFullYear();
+    var m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    var day = String(d.getUTCDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  // Start date must fall within today..+1 month, and can't be a Sunday
+  // (bumped forward to the next valid day if it lands on one).
+  function clampSubStartDate(dateStr){
+    var min = todayDateStr();
+    var max = addMonthToDateStr(min);
+    var out = dateStr || min;
+    if (out < min) out = min;
+    if (out > max) out = max;
+    if (isSundayDateStr(out)){
+      var next = addDaysToDateStr(out, 1);
+      out = (next <= max) ? next : addDaysToDateStr(out, -1);
+    }
+    return out;
+  }
   function formatCalendarDate(dateStr){
     if (!dateStr) return '';
     var p = dateStr.split('-');
@@ -327,13 +392,13 @@
 
   var state = {
     screen: 'home', cart: {}, category: 'Coffee', selectedItemId: null, itemQty: 1,
-    sugar: '100%', addons: [],
+    sugar: '100%', addons: {},
     redeemFreeCup: false, stamps: 0, freeCups: 0, orderCode: null, orderStatus: 'received',
     showReceiptNotice: false, rewardMsg: null,
     remark: '', lastCupPrice: null,
     paymentStatus: null,
     menuLayout: 'vertical',
-    subItemId: null, subSugar: '100%', subAddons: [], subStartDate: '', subDays: 6, subRemark: '',
+    subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subDays: 6, subRemark: '',
     pendingSubscription: null, confirmSubInfo: null, orderTime: null,
   };
 
@@ -344,8 +409,17 @@
   }
 
   function unitPrice(m, sugar, addons){
-    return m.price + addons.reduce(function(sum, a){ return sum + addonPrice(a); }, 0);
+    var extra = 0;
+    Object.keys(addons || {}).forEach(function(id){ extra += addonPrice(id) * (addons[id] || 0); });
+    return m.price + extra;
   }
+
+  // Loyalty free cups auto-apply to a new subscription as a bonus day on top
+  // of the days being paid for (e.g. eligible for 1 free cup + subscribes
+  // for 4 days = 5 total redeemable days). Only 1 free cup is ever applied
+  // per subscription — mirrors the server-side logic in api/order.js, which
+  // is the authoritative source once the order is actually placed.
+  function subBonusDays(){ return state.freeCups > 0 ? 1 : 0; }
 
   function computeTotal(){
     var cart = state.cart, subtotal = 0;
@@ -388,14 +462,25 @@
   function goRewards(){ setState({ screen: 'rewards' }); }
   function setCategory(c){ setState({ category: c }); }
   function setMenuLayout(v){ setState({ menuLayout: v }); }
-  function openItem(id){ setState({ screen: 'item', selectedItemId: id, itemQty: 1, sugar: '100%', addons: [] }); }
+  function openItem(id){ setState({ screen: 'item', selectedItemId: id, itemQty: 1, sugar: '100%', addons: {} }); }
   function incItemQty(){ setState(function(s){ return { itemQty: Math.min(9, s.itemQty + 1) }; }); }
   function decItemQty(){ setState(function(s){ return { itemQty: Math.max(1, s.itemQty - 1) }; }); }
   function setSugar(v){ setState({ sugar: v }); }
-  function toggleAddon(id){
+  // Add-ons can now be added 1 or more times (e.g. 2× Extra Shot) instead of
+  // just toggled on/off.
+  function incAddon(id){
     setState(function(s){
-      var has = s.addons.indexOf(id) !== -1;
-      return { addons: has ? s.addons.filter(function(a){ return a !== id; }) : s.addons.concat([id]) };
+      var addons = Object.assign({}, s.addons);
+      addons[id] = (addons[id] || 0) + 1;
+      return { addons: addons };
+    });
+  }
+  function decAddon(id){
+    setState(function(s){
+      var addons = Object.assign({}, s.addons);
+      var q = (addons[id] || 0) - 1;
+      if (q <= 0) delete addons[id]; else addons[id] = q;
+      return { addons: addons };
     });
   }
   function toggleRedeem(){ setState(function(s){ return { redeemFreeCup: !s.redeemFreeCup }; }); }
@@ -411,7 +496,7 @@
     });
   }
   function cartInc(id, sugar, addons){
-    sugar = sugar || '100%'; addons = addons || [];
+    sugar = sugar || '100%'; addons = addons || {};
     var key = cartKey(id, sugar, addons);
     setState(function(s){
       var existing = s.cart[key];
@@ -421,7 +506,7 @@
     });
   }
   function cartDec(id, sugar, addons){
-    sugar = sugar || '100%'; addons = addons || [];
+    sugar = sugar || '100%'; addons = addons || {};
     var key = cartKey(id, sugar, addons);
     setState(function(s){
       var cart = Object.assign({}, s.cart);
@@ -436,15 +521,24 @@
   function openSubscribe(){
     setState({
       screen: 'subscribe', subItemId: state.selectedItemId,
-      subSugar: state.sugar, subAddons: state.addons,
-      subStartDate: todayDateStr(), subDays: 6, subRemark: '',
+      subSugar: state.sugar, subAddons: Object.assign({}, state.addons),
+      subStartDate: clampSubStartDate(todayDateStr()), subDays: Math.min(MAX_SUB_DAYS, 6), subRemark: '',
     });
   }
   function setSubSugar(v){ setState({ subSugar: v }); }
-  function toggleSubAddon(id){
+  function incSubAddon(id){
     setState(function(s){
-      var has = s.subAddons.indexOf(id) !== -1;
-      return { subAddons: has ? s.subAddons.filter(function(a){ return a !== id; }) : s.subAddons.concat([id]) };
+      var addons = Object.assign({}, s.subAddons);
+      addons[id] = (addons[id] || 0) + 1;
+      return { subAddons: addons };
+    });
+  }
+  function decSubAddon(id){
+    setState(function(s){
+      var addons = Object.assign({}, s.subAddons);
+      var q = (addons[id] || 0) - 1;
+      if (q <= 0) delete addons[id]; else addons[id] = q;
+      return { subAddons: addons };
     });
   }
   function incSubDays(){ setState(function(s){ return { subDays: Math.min(MAX_SUB_DAYS, s.subDays + 1) }; }); }
@@ -454,11 +548,13 @@
     var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
     var unit = unitPrice(m, state.subSugar, state.subAddons);
     var days = state.subDays;
-    var validUntil = computeEndDateStr(state.subStartDate, days);
+    var bonus = subBonusDays();
+    var totalDays = days + bonus;
+    var validUntil = computeSubValidUntil(state.subStartDate, totalDays);
     setState({
       pendingSubscription: {
         item: m, sugar: state.subSugar, addons: state.subAddons, unitPrice: unit,
-        startDate: state.subStartDate, days: days, validUntil: validUntil,
+        startDate: state.subStartDate, days: days, bonusDays: bonus, totalDays: totalDays, validUntil: validUntil,
         total: Math.round(unit * days * 100) / 100, remark: state.subRemark,
       },
       screen: 'pay',
@@ -568,7 +664,7 @@
         var m = MENU.find(function(x){ return x.id === e.id; });
         return {
           name: m ? m.name : e.id, qty: e.qty, sugar: e.sugar,
-          addons: e.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; }),
+          addons: addonLabels(e.addons),
           unitPrice: m ? unitPrice(m, e.sugar, e.addons) : 0,
         };
       }),
@@ -610,7 +706,7 @@
       orderType: 'subscription',
       items: [{
         name: sub.item.name, qty: 1, sugar: sub.sugar,
-        addons: sub.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; }),
+        addons: addonLabels(sub.addons),
         unitPrice: sub.unitPrice,
       }],
       subStartDate: sub.startDate, subDays: sub.days,
@@ -627,7 +723,10 @@
       screen: 'confirm', orderCode: code, orderStatus: 'received',
       pendingSubscription: null, showReceiptNotice: false,
       paymentStatus: 'pending', orderTime: timestamp,
-      confirmSubInfo: { validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days, startDate: sub.startDate },
+      confirmSubInfo: {
+        validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days,
+        bonusDays: sub.bonusDays || 0, startDate: sub.startDate,
+      },
     });
 
     sendOrder(orderPayload);
@@ -646,7 +745,12 @@
         if (typeof data.stamps === 'number') patch.stamps = data.stamps;
         if (typeof data.freeCups === 'number') patch.freeCups = data.freeCups;
         if (typeof data.lastCupPrice === 'number' && !isNaN(data.lastCupPrice)) patch.lastCupPrice = data.lastCupPrice;
-        if (data.subValidUntil && s.confirmSubInfo) patch.confirmSubInfo = Object.assign({}, s.confirmSubInfo, { validUntil: data.subValidUntil });
+        if (data.subValidUntil && s.confirmSubInfo){
+          patch.confirmSubInfo = Object.assign({}, s.confirmSubInfo, {
+            validUntil: data.subValidUntil,
+            bonusDays: typeof data.subBonusDays === 'number' ? data.subBonusDays : s.confirmSubInfo.bonusDays,
+          });
+        }
         return patch;
       });
     }).catch(function(err){ console.error('Order notify failed', err); });
@@ -754,8 +858,11 @@
     ) : '';
 
     var addonsHtml = ADDON_OPTS.map(function(ad){
-      var active = state.addons.indexOf(ad.id) !== -1;
-      return '<div class="addon-chip' + (active ? ' active' : '') + '" data-addon="' + ad.id + '">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>';
+      var qty = state.addons[ad.id] || 0;
+      return '<div class="addon-item">' +
+        '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
+        '<div class="ctrl"><div class="btn" data-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-addon-inc="' + ad.id + '">+</div></div>' +
+      '</div>';
     }).join('');
 
     var unit = unitPrice(m, state.sugar, state.addons);
@@ -789,14 +896,24 @@
     ) : '';
 
     var addonsHtml = ADDON_OPTS.map(function(ad){
-      var active = state.subAddons.indexOf(ad.id) !== -1;
-      return '<div class="addon-chip' + (active ? ' active' : '') + '" data-sub-addon="' + ad.id + '">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>';
+      var qty = state.subAddons[ad.id] || 0;
+      return '<div class="addon-item">' +
+        '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
+        '<div class="ctrl"><div class="btn" data-sub-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-sub-addon-inc="' + ad.id + '">+</div></div>' +
+      '</div>';
     }).join('');
 
     var unit = unitPrice(m, state.subSugar, state.subAddons);
     var days = state.subDays;
+    var bonus = subBonusDays();
+    var totalDays = days + bonus;
     var total = Math.round(unit * days * 100) / 100;
-    var validUntil = computeEndDateStr(state.subStartDate, days);
+    var validUntil = computeSubValidUntil(state.subStartDate, totalDays);
+    var maxStartDate = addMonthToDateStr(todayDateStr());
+
+    var bonusRow = bonus > 0
+      ? '<div class="row"><span>🎁 Free cup bonus</span><span>+' + bonus + ' day' + (bonus === 1 ? '' : 's') + '</span></div>'
+      : '';
 
     var remarkHtml = '' +
       '<div class="remark-box">' +
@@ -812,12 +929,14 @@
         sugarHtml +
         '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' +
         '<div class="sec-label">Start date</div>' +
-        '<input type="date" class="date-input" id="subStartInput" value="' + esc(state.subStartDate) + '" min="' + todayDateStr() + '">' +
+        '<input type="date" class="date-input" id="subStartInput" value="' + esc(state.subStartDate) + '" min="' + todayDateStr() + '" max="' + maxStartDate + '">' +
+        '<div class="date-hint">Starts within 1 month from today · closed on Sundays (max ' + MAX_SUB_DAYS + ' days)</div>' +
         '<div class="qty-row"><div class="lbl">Number of days</div><div class="ctrl">' +
           '<div class="btn" id="subDaysDec">–</div><div class="n">' + days + '</div><div class="btn" id="subDaysInc">+</div>' +
         '</div></div>' +
         '<div class="sub-summary">' +
           '<div class="row"><span>Valid</span><span>' + esc(formatCalendarDate(state.subStartDate)) + ' → ' + esc(formatCalendarDate(validUntil)) + '</span></div>' +
+          bonusRow +
           '<div class="row total"><span>Total</span><span>$' + money(total) + '</span></div>' +
         '</div>' +
         remarkHtml +
@@ -834,8 +953,7 @@
       var m = MENU.find(function(x){ return x.id === e.id; });
       var unit = unitPrice(m, e.sugar, e.addons);
       var sugarLabel = (DRINK_CATEGORIES.indexOf(m.category) !== -1) ? (e.sugar + ' sugar') : null;
-      var addonLabels = e.addons.map(function(a){ var ad = ADDON_OPTS.find(function(x){return x.id===a}); return ad ? ad.label : a; });
-      var detailParts = [sugarLabel].concat(addonLabels).filter(Boolean);
+      var detailParts = [sugarLabel].concat(addonLabels(e.addons)).filter(Boolean);
       var thumb = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '';
       return '' +
         '<div class="cart-row">' +
@@ -882,9 +1000,12 @@
   function renderPay(){
     var sub = state.pendingSubscription;
     var totalVal = sub ? sub.total : computeTotal().total;
+    var subDaysLabel = sub && sub.bonusDays > 0
+      ? (sub.days + ' day' + (sub.days === 1 ? '' : 's') + ' + ' + sub.bonusDays + ' free')
+      : (sub ? (sub.days + ' day' + (sub.days === 1 ? '' : 's')) : '');
     var subSummary = sub ? (
       '<div class="pay-sub-summary">' +
-        esc(sub.item.name) + ' × ' + sub.days + ' day' + (sub.days === 1 ? '' : 's') + '<br>' +
+        esc(sub.item.name) + ' × ' + subDaysLabel + '<br>' +
         esc(formatCalendarDate(sub.startDate)) + ' → ' + esc(formatCalendarDate(sub.validUntil)) +
       '</div>'
     ) : '';
@@ -939,7 +1060,9 @@
       ? '<div class="order-time">Order Time: ' + esc(formatOrderTime(state.orderTime)) + '</div>' : '';
 
     var subHtml = isSub
-      ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b></div>'
+      ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b>' +
+        (state.confirmSubInfo.bonusDays > 0 ? '<br><span style="opacity:.85">🎁 Includes ' + state.confirmSubInfo.bonusDays + ' free day from your loyalty reward</span>' : '') +
+        '</div>'
       : '';
 
     // Subscriptions don't go through a "prep timer" — there's no single cup
@@ -1100,8 +1223,11 @@
     content.querySelectorAll('[data-sugar]').forEach(function(el){
       el.addEventListener('click', function(){ setSugar(el.getAttribute('data-sugar')); });
     });
-    content.querySelectorAll('[data-addon]').forEach(function(el){
-      el.addEventListener('click', function(){ toggleAddon(el.getAttribute('data-addon')); });
+    content.querySelectorAll('[data-addon-inc]').forEach(function(el){
+      el.addEventListener('click', function(){ incAddon(el.getAttribute('data-addon-inc')); });
+    });
+    content.querySelectorAll('[data-addon-dec]').forEach(function(el){
+      el.addEventListener('click', function(){ decAddon(el.getAttribute('data-addon-dec')); });
     });
     var itemInc = document.getElementById('itemInc');
     if (itemInc) itemInc.addEventListener('click', incItemQty);
@@ -1114,11 +1240,14 @@
     content.querySelectorAll('[data-sub-sugar]').forEach(function(el){
       el.addEventListener('click', function(){ setSubSugar(el.getAttribute('data-sub-sugar')); });
     });
-    content.querySelectorAll('[data-sub-addon]').forEach(function(el){
-      el.addEventListener('click', function(){ toggleSubAddon(el.getAttribute('data-sub-addon')); });
+    content.querySelectorAll('[data-sub-addon-inc]').forEach(function(el){
+      el.addEventListener('click', function(){ incSubAddon(el.getAttribute('data-sub-addon-inc')); });
+    });
+    content.querySelectorAll('[data-sub-addon-dec]').forEach(function(el){
+      el.addEventListener('click', function(){ decSubAddon(el.getAttribute('data-sub-addon-dec')); });
     });
     var subStartInput = document.getElementById('subStartInput');
-    if (subStartInput) subStartInput.addEventListener('change', function(e){ setState({ subStartDate: e.target.value }); });
+    if (subStartInput) subStartInput.addEventListener('change', function(e){ setState({ subStartDate: clampSubStartDate(e.target.value) }); });
     var subDaysInc = document.getElementById('subDaysInc');
     if (subDaysInc) subDaysInc.addEventListener('click', incSubDays);
     var subDaysDec = document.getElementById('subDaysDec');
