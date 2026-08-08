@@ -29,6 +29,19 @@ import { pushOrderToSheet } from './_sheets.js';
 const STAMPS_NEEDED = 6;
 const ORDER_TTL_SECONDS = 60 * 60 * 24 * 14; // 14 days
 const MAX_SUB_DAYS = 6;
+const VALID_SUB_PATTERNS = ['mon-sat', 'weekdays'];
+
+// Server-side unique order code generator (7T-1000, 7T-1001, ...), backed by
+// a single atomic Redis counter (INCR) so concurrent orders can never
+// collide — unlike the old client-side Math.random() scheme, which could in
+// theory repeat. The seed is written once via SETNX comfortably above the
+// old random range so new codes never overlap with any order still live
+// from before this change.
+async function generateOrderCode(client) {
+  await client.set('order_seq', '999', { NX: true });
+  const n = await client.incr('order_seq');
+  return `7T-${n}`;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -69,6 +82,24 @@ export default async function handler(req, res) {
   let lastCupPrice = null;
   let redisClient = null;
 
+  // ---- 0. Generate the unique, server-authoritative order code. Never
+  //         trust anything the client sent for this — the old client-side
+  //         Math.random() scheme is gone. Falls back to a timestamp-based
+  //         code only if Redis itself is unreachable, so an order never
+  //         fails outright just because the counter couldn't be read. ----
+  let orderCode;
+  try {
+    redisClient = await getClient();
+    orderCode = await generateOrderCode(redisClient);
+  } catch (err) {
+    console.error('Order code generation failed, using timestamp fallback', err);
+    orderCode = `7T-${Date.now().toString().slice(-6)}`;
+  }
+
+  // Subscription redemption pattern — only two valid values, default to the
+  // original Sunday-only exclusion if the client omits it or sends garbage.
+  const subPattern = VALID_SUB_PATTERNS.indexOf(order.subPattern) !== -1 ? order.subPattern : 'mon-sat';
+
   if (isSubscription) {
     // ---- Subscription: recompute the date range + total server-side, never
     //      trust the client's total, date list, or day count. ----
@@ -82,7 +113,7 @@ export default async function handler(req, res) {
     }
 
     const today = todayInPhnomPenh();
-    const subStartDate = clampSubStartDate(rawStartDate, today);
+    const subStartDate = clampSubStartDate(rawStartDate, today, subPattern);
 
     // ---- Loyalty free-cup bonus: if the customer already has a free cup
     //      banked, it's auto-applied as 1 bonus (unpaid) day on top of the
@@ -93,7 +124,7 @@ export default async function handler(req, res) {
     const subUserId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
     if (subUserId) {
       try {
-        const client = await getClient();
+        const client = redisClient || (await getClient());
         redisClient = client;
         const totalKey = `user:${subUserId}:total`;
         const usedKey = `user:${subUserId}:used`;
@@ -116,15 +147,16 @@ export default async function handler(req, res) {
     }
 
     const totalDays = subDays + bonusDays;
-    const subDates = computeSubDates(subStartDate, totalDays);
+    const subDates = computeSubDates(subStartDate, totalDays, subPattern);
     appliedTotal = Math.round(unitPrice * subDays * 100) / 100;
 
     resolvedOrder = Object.assign({}, order, {
+      orderCode,
       orderType: 'subscription',
       items: [item],
       subtotal: appliedTotal, discount: 0, total: appliedTotal,
       redeemedFreeCup: freeCupApplied, remark,
-      subStartDate, subDays, subBonusDays: bonusDays, subTotalDays: totalDays,
+      subStartDate, subDays, subPattern, subBonusDays: bonusDays, subTotalDays: totalDays,
       subDates, subValidUntil: subDates[subDates.length - 1],
       subRedeemedDates: [],
       status: 'pending', confirmedByName: null,
@@ -137,7 +169,7 @@ export default async function handler(req, res) {
 
     if (userId) {
       try {
-        const client = await getClient();
+        const client = redisClient || (await getClient());
         redisClient = client;
         const totalKey = `user:${userId}:total`;
         const usedKey = `user:${userId}:used`;
@@ -189,6 +221,7 @@ export default async function handler(req, res) {
     }
 
     resolvedOrder = Object.assign({}, order, {
+      orderCode,
       discount: appliedDiscount, total: appliedTotal, remark, redeemedFreeCup: redeemApplied,
       status: 'pending', confirmedByName: null,
     });
@@ -265,7 +298,7 @@ export default async function handler(req, res) {
   }
 
   return res.status(200).json({
-    ok: true, stamps, freeCups, customerNotified, groupNotified,
+    ok: true, orderCode, stamps, freeCups, customerNotified, groupNotified,
     discount: appliedDiscount, total: appliedTotal, lastCupPrice,
     subValidUntil: resolvedOrder.subValidUntil || null,
     subBonusDays: typeof resolvedOrder.subBonusDays === 'number' ? resolvedOrder.subBonusDays : null,
