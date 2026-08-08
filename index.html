@@ -605,8 +605,14 @@
       } else {
         days.push(dow);
       }
+      // Preserve the customer's chosen number of days (rather than letting
+      // the end date collapse) whenever the start date has to move forward
+      // onto a newly-selected day.
+      var prevDays = countMatchingDaysInRange(s.subStartDate, s.subEndDate, s.subDaysOfWeek);
+      if (prevDays < 1) prevDays = 1;
+      if (prevDays > MAX_SUB_DAYS) prevDays = MAX_SUB_DAYS;
       var start = clampSubStartDateForDays(s.subStartDate, days);
-      var end = clampSubEndDateForDays(start, s.subEndDate, days, MAX_SUB_DAYS);
+      var end = nthMatchingDate(start, days, prevDays);
       return { subDaysOfWeek: days, subStartDate: start, subEndDate: end };
     });
   }
@@ -629,8 +635,14 @@
   // the end date against whatever start/day-set is now in effect.
   function setSubStartDate(v){
     setState(function(s){
+      // Keep the same number of subscription days when the start date moves —
+      // otherwise pushing the start date past the old end date would collapse
+      // the range down to a single day, which looked "misaligned" to customers.
+      var prevDays = countMatchingDaysInRange(s.subStartDate, s.subEndDate, s.subDaysOfWeek);
+      if (prevDays < 1) prevDays = 1;
+      if (prevDays > MAX_SUB_DAYS) prevDays = MAX_SUB_DAYS;
       var start = clampSubStartDateForDays(v, s.subDaysOfWeek);
-      var end = clampSubEndDateForDays(start, s.subEndDate, s.subDaysOfWeek, MAX_SUB_DAYS);
+      var end = nthMatchingDate(start, s.subDaysOfWeek, prevDays);
       return { subStartDate: start, subEndDate: end };
     });
   }
