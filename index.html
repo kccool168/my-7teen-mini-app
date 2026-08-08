@@ -394,19 +394,6 @@
     }
     return out;
   }
-  // Counts how many selected-weekday dates fall within [startStr, endStr]
-  // inclusive — this is what drives the read-only "Number of days" figure.
-  function countMatchingDaysInRange(startStr, endStr, days){
-    var out = 0;
-    var cur = startStr;
-    var guard = 0;
-    while (cur <= endStr && guard < 500){
-      guard++;
-      if (isSelectedDateStr(cur, days)) out++;
-      cur = addDaysToDateStr(cur, 1);
-    }
-    return out;
-  }
   // Walks forward from startStr and returns the date of the n-th selected
   // weekday (inclusive of startStr itself if it qualifies).
   function nthMatchingDate(startStr, days, n){
@@ -422,16 +409,6 @@
       cur = addDaysToDateStr(cur, 1);
     }
     return cur;
-  }
-  // End date must be on/after the start date, and can't let the total paid
-  // days exceed MAX_SUB_DAYS — auto-pulled back to the latest date that
-  // keeps the count at the cap.
-  function clampSubEndDateForDays(startStr, endStr, days, max){
-    var out = (endStr && endStr >= startStr) ? endStr : startStr;
-    if (!days.length) return out;
-    var count = countMatchingDaysInRange(startStr, out, days);
-    if (count > max) out = nthMatchingDate(startStr, days, max);
-    return out;
   }
   function formatCalendarDate(dateStr){
     if (!dateStr) return '';
@@ -461,7 +438,7 @@
     remark: '', lastCupPrice: null,
     paymentStatus: null,
     menuLayout: 'vertical',
-    subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subEndDate: '', subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
+    subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
     pendingSubscription: null, confirmSubInfo: null, orderTime: null,
   };
 
@@ -582,11 +559,10 @@
 
   // ---- subscriptions ----
   function openSubscribe(){
-    var start = clampSubStartDateForDays(todayDateStr(), [1,2,3,4,5,6]);
     setState({
       screen: 'subscribe', subItemId: state.selectedItemId,
       subSugar: state.sugar, subAddons: Object.assign({}, state.addons),
-      subStartDate: start, subEndDate: nthMatchingDate(start, [1,2,3,4,5,6], MAX_SUB_DAYS), subRemark: '',
+      subStartDate: clampSubStartDateForDays(todayDateStr(), [1,2,3,4,5,6]), subRemark: '',
       subDaysOfWeek: [1,2,3,4,5,6],
     });
   }
@@ -605,15 +581,7 @@
       } else {
         days.push(dow);
       }
-      // Preserve the customer's chosen number of days (rather than letting
-      // the end date collapse) whenever the start date has to move forward
-      // onto a newly-selected day.
-      var prevDays = countMatchingDaysInRange(s.subStartDate, s.subEndDate, s.subDaysOfWeek);
-      if (prevDays < 1) prevDays = 1;
-      if (prevDays > MAX_SUB_DAYS) prevDays = MAX_SUB_DAYS;
-      var start = clampSubStartDateForDays(s.subStartDate, days);
-      var end = nthMatchingDate(start, days, prevDays);
-      return { subDaysOfWeek: days, subStartDate: start, subEndDate: end };
+      return { subDaysOfWeek: days, subStartDate: clampSubStartDateForDays(s.subStartDate, days) };
     });
   }
   function incSubAddon(id){
@@ -631,31 +599,18 @@
       return { subAddons: addons };
     });
   }
-  // Direct edits to either date input — clamp start normally, then re-clamp
-  // the end date against whatever start/day-set is now in effect.
+  // Start date is the only thing the customer edits directly — end date and
+  // day count are both fully derived from it plus the selected weekdays.
   function setSubStartDate(v){
     setState(function(s){
-      // Keep the same number of subscription days when the start date moves —
-      // otherwise pushing the start date past the old end date would collapse
-      // the range down to a single day, which looked "misaligned" to customers.
-      var prevDays = countMatchingDaysInRange(s.subStartDate, s.subEndDate, s.subDaysOfWeek);
-      if (prevDays < 1) prevDays = 1;
-      if (prevDays > MAX_SUB_DAYS) prevDays = MAX_SUB_DAYS;
-      var start = clampSubStartDateForDays(v, s.subDaysOfWeek);
-      var end = nthMatchingDate(start, s.subDaysOfWeek, prevDays);
-      return { subStartDate: start, subEndDate: end };
-    });
-  }
-  function setSubEndDate(v){
-    setState(function(s){
-      return { subEndDate: clampSubEndDateForDays(s.subStartDate, v, s.subDaysOfWeek, MAX_SUB_DAYS) };
+      return { subStartDate: clampSubStartDateForDays(v, s.subDaysOfWeek) };
     });
   }
 
   function goSubscriptionPay(){
     var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
     var unit = unitPrice(m, state.subSugar, state.subAddons);
-    var days = countMatchingDaysInRange(state.subStartDate, state.subEndDate, state.subDaysOfWeek);
+    var days = state.subDaysOfWeek.length;
     var bonus = subBonusDays();
     var totalDays = days + bonus;
     var validUntil = computeSubValidUntilForDays(state.subStartDate, totalDays, state.subDaysOfWeek);
@@ -994,14 +949,14 @@
     }).join('');
 
     var unit = unitPrice(m, state.subSugar, state.subAddons);
-    var days = countMatchingDaysInRange(state.subStartDate, state.subEndDate, state.subDaysOfWeek);
+    var days = state.subDaysOfWeek.length;
+    var subEndDate = nthMatchingDate(state.subStartDate, state.subDaysOfWeek, days);
     var bonus = subBonusDays();
     var totalDays = days + bonus;
     var total = Math.round(unit * days * 100) / 100;
     var validUntil = computeSubValidUntilForDays(state.subStartDate, totalDays, state.subDaysOfWeek);
     var maxStartDate = addMonthToDateStr(todayDateStr());
-    var maxEndDate = addDaysToDateStr(state.subStartDate, 60);
-    var dayHint = 'Closed on Sundays · end date auto-adjusts to keep the total at ' + MAX_SUB_DAYS + ' days';
+    var dayHint = 'Closed on Sundays · number of days matches how many weekdays you selected';
 
     var bonusRow = bonus > 0
       ? '<div class="row"><span>🎁 Free cup bonus</span><span>+' + bonus + ' day' + (bonus === 1 ? '' : 's') + '</span></div>'
@@ -1026,10 +981,9 @@
         }).join('') + '</div>' +
         '<div class="sec-label">Start date</div>' +
         '<input type="date" class="date-input" id="subStartInput" value="' + esc(state.subStartDate) + '" min="' + todayDateStr() + '" max="' + maxStartDate + '">' +
-        '<div class="sec-label">End date</div>' +
-        '<input type="date" class="date-input" id="subEndInput" value="' + esc(state.subEndDate) + '" min="' + esc(state.subStartDate) + '" max="' + maxEndDate + '">' +
         '<div class="date-hint">' + esc(dayHint) + '</div>' +
         '<div class="qty-row"><div class="lbl">Number of days</div><div class="ctrl"><div class="n">' + days + '</div></div></div>' +
+        '<div class="qty-row"><div class="lbl">End date</div><div class="ctrl"><div class="n">' + esc(formatCalendarDate(subEndDate)) + '</div></div></div>' +
         '<div class="sub-summary">' +
           '<div class="row"><span>Valid</span><span>' + esc(formatCalendarDate(state.subStartDate)) + ' → ' + esc(formatCalendarDate(validUntil)) + '</span></div>' +
           bonusRow +
@@ -1229,7 +1183,7 @@
     } else if (state.screen === 'subscribe'){
       var sm = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
       var sunit = unitPrice(sm, state.subSugar, state.subAddons);
-      var sdays = countMatchingDaysInRange(state.subStartDate, state.subEndDate, state.subDaysOfWeek);
+      var sdays = state.subDaysOfWeek.length;
       label = 'Subscribe · $' + money(sunit * sdays);
       action = goSubscriptionPay;
     } else if (state.screen === 'cart'){
@@ -1322,8 +1276,6 @@
     });
     var subStartInput = document.getElementById('subStartInput');
     if (subStartInput) subStartInput.addEventListener('change', function(e){ setSubStartDate(e.target.value); });
-    var subEndInput = document.getElementById('subEndInput');
-    if (subEndInput) subEndInput.addEventListener('change', function(e){ setSubEndDate(e.target.value); });
     var subRemarkInput = document.getElementById('subRemarkInput');
     if (subRemarkInput){
       subRemarkInput.addEventListener('input', function(e){
