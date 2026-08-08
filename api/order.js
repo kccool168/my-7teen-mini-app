@@ -29,7 +29,9 @@ import { pushOrderToSheet } from './_sheets.js';
 const STAMPS_NEEDED = 6;
 const ORDER_TTL_SECONDS = 60 * 60 * 24 * 14; // 14 days
 const MAX_SUB_DAYS = 6;
-const VALID_SUB_PATTERNS = ['mon-sat', 'weekdays'];
+// The café is always closed Sundays, so 0 is never a valid choice — the
+// customer picks any non-empty subset of the remaining six days.
+const VALID_SUB_DOWS = [1, 2, 3, 4, 5, 6];
 
 // Server-side unique order code generator (7T-1000, 7T-1001, ...), backed by
 // a single atomic Redis counter (INCR) so concurrent orders can never
@@ -96,9 +98,15 @@ export default async function handler(req, res) {
     orderCode = `7T-${Date.now().toString().slice(-6)}`;
   }
 
-  // Subscription redemption pattern — only two valid values, default to the
-  // original Sunday-only exclusion if the client omits it or sends garbage.
-  const subPattern = VALID_SUB_PATTERNS.indexOf(order.subPattern) !== -1 ? order.subPattern : 'mon-sat';
+  // Which day(s) of the week the customer wants their drink — validated
+  // against the allowed range (Mon-Sat; the café is always closed Sundays)
+  // and de-duped. Falls back to every open day if the client omitted it or
+  // sent garbage, so an order never fails outright over a malformed list.
+  const rawDaysOfWeek = Array.isArray(order.subDaysOfWeek) ? order.subDaysOfWeek : [];
+  const cleanedDaysOfWeek = Array.from(new Set(
+    rawDaysOfWeek.map((d) => parseInt(d, 10)).filter((d) => VALID_SUB_DOWS.indexOf(d) !== -1)
+  ));
+  const subDaysOfWeek = cleanedDaysOfWeek.length ? cleanedDaysOfWeek : VALID_SUB_DOWS.slice();
 
   if (isSubscription) {
     // ---- Subscription: recompute the date range + total server-side, never
@@ -113,7 +121,7 @@ export default async function handler(req, res) {
     }
 
     const today = todayInPhnomPenh();
-    const subStartDate = clampSubStartDate(rawStartDate, today, subPattern);
+    const subStartDate = clampSubStartDate(rawStartDate, today, subDaysOfWeek);
 
     // ---- Loyalty free-cup bonus: if the customer already has a free cup
     //      banked, it's auto-applied as 1 bonus (unpaid) day on top of the
@@ -147,7 +155,7 @@ export default async function handler(req, res) {
     }
 
     const totalDays = subDays + bonusDays;
-    const subDates = computeSubDates(subStartDate, totalDays, subPattern);
+    const subDates = computeSubDates(subStartDate, totalDays, subDaysOfWeek);
     appliedTotal = Math.round(unitPrice * subDays * 100) / 100;
 
     resolvedOrder = Object.assign({}, order, {
@@ -156,7 +164,7 @@ export default async function handler(req, res) {
       items: [item],
       subtotal: appliedTotal, discount: 0, total: appliedTotal,
       redeemedFreeCup: freeCupApplied, remark,
-      subStartDate, subDays, subPattern, subBonusDays: bonusDays, subTotalDays: totalDays,
+      subStartDate, subDays, subDaysOfWeek, subBonusDays: bonusDays, subTotalDays: totalDays,
       subDates, subValidUntil: subDates[subDates.length - 1],
       subRedeemedDates: [],
       status: 'pending', confirmedByName: null,
