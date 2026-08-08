@@ -86,46 +86,50 @@ export function dayOfWeekUTC(dateStr) {
 
 // Clamps a requested subscription start date server-side (defense in depth
 // — never trust the client's date alone): must fall within today..+1 month,
-// and can't be a Sunday (the café doesn't run subscriptions on Sundays —
-// bumped forward to the next valid day, mirroring the client's own clamp).
-// Which weekdays don't count as redeemable days, per subscription pattern.
-// 'mon-sat' (default / original behavior): closed Sundays only.
-// 'weekdays': closed Saturday + Sunday (Mon–Fri only).
+// and must land on a day the customer actually selected (the café is also
+// always closed Sundays, so 0 never appears in a valid `days` list — see
+// VALID_SUB_DAYS in api/order.js). Mirrors the client's own clamp.
 // dayOfWeekUTC(): 0 = Sunday ... 6 = Saturday.
-function excludedDaysForPattern(pattern) {
-  return pattern === 'weekdays' ? [0, 6] : [0];
+function isSelectedDateStr(dateStr, days) {
+  return days.indexOf(dayOfWeekUTC(dateStr)) !== -1;
 }
 
-function isExcludedDateStr(dateStr, pattern) {
-  return excludedDaysForPattern(pattern).indexOf(dayOfWeekUTC(dateStr)) !== -1;
-}
-
-export function clampSubStartDate(dateStr, todayStr, pattern) {
+export function clampSubStartDate(dateStr, todayStr, days) {
   const min = todayStr;
   const max = addMonthToDateStr(min);
   let out = (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) ? dateStr : min;
   if (out < min) out = min;
   if (out > max) out = max;
-  let guard = 0;
-  while (isExcludedDateStr(out, pattern) && guard < 10) {
-    guard++;
-    const next = addDaysToDateStr(out, 1);
-    if (next <= max) { out = next; } else { out = addDaysToDateStr(out, -1); break; }
+  if (!Array.isArray(days) || !days.length) return out;
+
+  let cur = out;
+  for (let i = 0; i < 40; i++) {
+    if (isSelectedDateStr(cur, days)) return cur;
+    const next = addDaysToDateStr(cur, 1);
+    if (next > max) break;
+    cur = next;
+  }
+  cur = out;
+  for (let i = 0; i < 40; i++) {
+    if (isSelectedDateStr(cur, days)) return cur;
+    const prev = addDaysToDateStr(cur, -1);
+    if (prev < min) break;
+    cur = prev;
   }
   return out;
 }
 
 // Given a start date and a *total* day count (paid days + any bonus free
-// days), returns the list of redeemable calendar dates, skipping the days
-// excluded by the subscription's pattern (see excludedDaysForPattern above).
-export function computeSubDates(startDateStr, totalDays, pattern) {
+// days), returns the list of redeemable calendar dates, skipping any day of
+// the week the customer didn't select.
+export function computeSubDates(startDateStr, totalDays, days) {
   const out = [];
   const n = Math.max(1, parseInt(totalDays, 10) || 0);
   let cur = startDateStr;
   let guard = 0;
   while (out.length < n && guard < 400) {
     guard++;
-    if (!isExcludedDateStr(cur, pattern)) out.push(cur);
+    if (isSelectedDateStr(cur, days)) out.push(cur);
     if (out.length < n) cur = addDaysToDateStr(cur, 1);
   }
   return out;
