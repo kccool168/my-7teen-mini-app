@@ -88,31 +88,44 @@ export function dayOfWeekUTC(dateStr) {
 // — never trust the client's date alone): must fall within today..+1 month,
 // and can't be a Sunday (the café doesn't run subscriptions on Sundays —
 // bumped forward to the next valid day, mirroring the client's own clamp).
-export function clampSubStartDate(dateStr, todayStr) {
+// Which weekdays don't count as redeemable days, per subscription pattern.
+// 'mon-sat' (default / original behavior): closed Sundays only.
+// 'weekdays': closed Saturday + Sunday (Mon–Fri only).
+// dayOfWeekUTC(): 0 = Sunday ... 6 = Saturday.
+function excludedDaysForPattern(pattern) {
+  return pattern === 'weekdays' ? [0, 6] : [0];
+}
+
+function isExcludedDateStr(dateStr, pattern) {
+  return excludedDaysForPattern(pattern).indexOf(dayOfWeekUTC(dateStr)) !== -1;
+}
+
+export function clampSubStartDate(dateStr, todayStr, pattern) {
   const min = todayStr;
   const max = addMonthToDateStr(min);
   let out = (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) ? dateStr : min;
   if (out < min) out = min;
   if (out > max) out = max;
-  if (dayOfWeekUTC(out) === 0) {
+  let guard = 0;
+  while (isExcludedDateStr(out, pattern) && guard < 10) {
+    guard++;
     const next = addDaysToDateStr(out, 1);
-    out = next <= max ? next : addDaysToDateStr(out, -1);
+    if (next <= max) { out = next; } else { out = addDaysToDateStr(out, -1); break; }
   }
   return out;
 }
 
 // Given a start date and a *total* day count (paid days + any bonus free
-// days), returns the list of redeemable calendar dates, skipping Sundays —
-// the café doesn't run subscriptions on Sundays, so Sunday never counts as
-// one of the days and the range simply extends further to make up for it.
-export function computeSubDates(startDateStr, totalDays) {
+// days), returns the list of redeemable calendar dates, skipping the days
+// excluded by the subscription's pattern (see excludedDaysForPattern above).
+export function computeSubDates(startDateStr, totalDays, pattern) {
   const out = [];
   const n = Math.max(1, parseInt(totalDays, 10) || 0);
   let cur = startDateStr;
   let guard = 0;
   while (out.length < n && guard < 400) {
     guard++;
-    if (dayOfWeekUTC(cur) !== 0) out.push(cur);
+    if (!isExcludedDateStr(cur, pattern)) out.push(cur);
     if (out.length < n) cur = addDaysToDateStr(cur, 1);
   }
   return out;
