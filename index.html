@@ -63,9 +63,9 @@
   .layout-toggle .lt-btn{width:30px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:9px;font-size:14px;cursor:pointer;color:var(--chip-text)}
   .layout-toggle .lt-btn.active{background:var(--accent);color:#fff}
 
-  .pattern-toggle{display:flex;gap:6px;margin-top:6px}
-  .pattern-toggle .p-opt{flex:1;text-align:center;padding:10px 6px;border-radius:12px;background:var(--chip-bg);color:var(--chip-text);font-weight:700;font-size:12.5px;cursor:pointer}
-  .pattern-toggle .p-opt.active{background:var(--accent);color:#fff}
+  .day-toggle{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .day-toggle .d-opt{flex:1 1 0;min-width:38px;text-align:center;padding:10px 4px;border-radius:12px;background:var(--chip-bg);color:var(--chip-text);font-weight:700;font-size:12.5px;cursor:pointer}
+  .day-toggle .d-opt.active{background:var(--accent);color:#fff}
 
   .item-list{padding:4px 16px 100px;display:flex;flex-direction:column;gap:10px}
   .item-card{display:flex;gap:12px;padding:10px;background:var(--card);border-radius:18px;border:1px solid var(--border)}
@@ -90,7 +90,7 @@
   .grid-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line}
   .grid-info{padding:8px 10px 2px;cursor:pointer;min-width:0}
   .grid-info .nm{font-weight:800;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .grid-info .prx�nt-weight:800;font-size:13px;color:var(--accent);margin-top:3px}
+  .grid-info .prx�nt-weight:800;font-size:13px;color:var(--accent);margin-top:3px}
   .grid-ctrl{padding:6px 10px 10px;display:flex;justify-content:flex-end}
 
   /* Item detail */
@@ -144,7 +144,7 @@
   .cart-row .ctrl .btn{width:22px;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
   .cart-row .ctrl .n{min-width:14px;text-align:center;font-weight:800;font-size:13px}
 
-  .redeem-row{margin:4px 16px;padding:12px 14px;border-radius:14px;background:var(--info-bg);display:flex;align-items:center;justify-content:space-between;cux�or:pointer}
+  .redeem-row{margin:4px 16px;padding:12px 14px;border-radius:14px;background:var(--info-bg);display:flex;align-items:center;justify-content:space-between;cux�or:pointer}
   .redeem-row .lbl{font-size:13px;font-weight:700;color:var(--info-text)}
   .toggle{width:38px;height:22px;border-radius:11px;background:rgba(43,36,32,.15);position:relative;flex-shrink:0;transition:background .15s}
   .toggle.on{background:var(--accent)}
@@ -329,32 +329,32 @@
     return y + '-' + m + '-' + day;
   }
   // The shop is always closed Sundays, no matter what. On top of that, the
-  // customer picks a personal redemption pattern: "mon-sat" (every day the
-  // shop is open) or "weekdays" (Mon-Fri only, e.g. an office worker who
-  // isn't around on weekends). Whichever days are excluded get skipped and
-  // the range simply extends further, so the customer still gets every day
-  // they paid (or were rewarded) for.
-  function excludedDaysForPattern(pattern){
-    return pattern === 'weekdays' ? [0, 6] : [0];
-  }
-  function isExcludedDateStr(dateStr, pattern){
+  // customer picks exactly which day(s) of the week they want their drink
+  // (e.g. Mon, Wed, Fri, Sat) via a multi-select of weekday chips. Any day
+  // not selected gets skipped and the range simply extends further, so the
+  // customer still gets every day they paid (or were rewarded) for.
+  var SUB_DAY_OPTS = [
+    { dow: 1, label: 'Mon' }, { dow: 2, label: 'Tue' }, { dow: 3, label: 'Wed' },
+    { dow: 4, label: 'Thu' }, { dow: 5, label: 'Fri' }, { dow: 6, label: 'Sat' },
+  ];
+  function isSelectedDateStr(dateStr, days){
     var p = dateStr.split('-').map(Number);
     var dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
-    return excludedDaysForPattern(pattern).indexOf(dow) !== -1;
+    return days.indexOf(dow) !== -1;
   }
-  function computeSubDatesForPattern(startStr, totalDays, pattern){
+  function computeSubDatesForDays(startStr, totalDays, days){
     var out = [];
     var cur = startStr;
     var guard = 0;
     while (out.length < totalDays && guard < 400){
       guard++;
-      if (!isExcludedDateStr(cur, pattern)) out.push(cur);
+      if (isSelectedDateStr(cur, days)) out.push(cur);
       if (out.length < totalDays) cur = addDaysToDateStr(cur, 1);
     }
     return out;
   }
-  function computeSubValidUntilForPattern(startStr, totalDays, pattern){
-    var dates = computeSubDatesForPattern(startStr, totalDays, pattern);
+  function computeSubValidUntilForDays(startStr, totalDays, days){
+    var dates = computeSubDatesForDays(startStr, totalDays, days);
     return dates.length ? dates[dates.length - 1] : startStr;
   }
   function addMonthToDateStr(dateStr){
@@ -366,21 +366,31 @@
     var day = String(d.getUTCDate()).padStart(2, '0');
     return y + '-' + m + '-' + day;
   }
-  // Start date must fall within today..+1 month, and can't land on a day
-  // excluded by the chosen pattern (bumped forward, day by day, to the next
-  // valid day — a loop rather than a single bump, since the "weekdays"
-  // pattern can have two excluded days in a row, e.g. landing on Saturday).
-  function clampSubStartDateForPattern(dateStr, pattern){
+  // Start date must fall within today..+1 month, and can't land on a day the
+  // customer didn't select (bumped forward, day by day, to the next selected
+  // day; if none found before the max date, scan backward instead — a loop
+  // rather than a single bump, since several days in a row can be
+  // unselected, e.g. only Saturdays chosen).
+  function clampSubStartDateForDays(dateStr, days){
     var min = todayDateStr();
     var max = addMonthToDateStr(min);
     var out = dateStr || min;
     if (out < min) out = min;
     if (out > max) out = max;
-    var guard = 0;
-    while (isExcludedDateStr(out, pattern) && guard < 10){
-      guard++;
-      var next = addDaysToDateStr(out, 1);
-      out = (next <= max) ? next : addDaysToDateStr(out, -1);
+    if (!days.length) return out;
+    var cur = out, i;
+    for (i = 0; i < 40; i++){
+      if (isSelectedDateStr(cur, days)) return cur;
+      var next = addDaysToDateStr(cur, 1);
+      if (next > max) break;
+      cur = next;
+    }
+    cur = out;
+    for (i = 0; i < 40; i++){
+      if (isSelectedDateStr(cur, days)) return cur;
+      var prev = addDaysToDateStr(cur, -1);
+      if (prev < min) break;
+      cur = prev;
     }
     return out;
   }
@@ -412,7 +422,7 @@
     remark: '', lastCupPrice: null,
     paymentStatus: null,
     menuLayout: 'vertical',
-    subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subDays: 6, subRemark: '', subPattern: 'mon-sat',
+    subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subDays: 6, subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
     pendingSubscription: null, confirmSubInfo: null, orderTime: null,
   };
 
@@ -536,16 +546,24 @@
     setState({
       screen: 'subscribe', subItemId: state.selectedItemId,
       subSugar: state.sugar, subAddons: Object.assign({}, state.addons),
-      subStartDate: clampSubStartDateForPattern(todayDateStr(), 'mon-sat'), subDays: Math.min(MAX_SUB_DAYS, 6), subRemark: '',
-      subPattern: 'mon-sat',
+      subStartDate: clampSubStartDateForDays(todayDateStr(), [1,2,3,4,5,6]), subDays: Math.min(MAX_SUB_DAYS, 6), subRemark: '',
+      subDaysOfWeek: [1,2,3,4,5,6],
     });
   }
   function setSubSugar(v){ setState({ subSugar: v }); }
-  // Switching pattern (e.g. Mon-Sat -> Weekdays only) may put the current
-  // start date on a now-excluded day (a Saturday), so re-clamp it too.
-  function setSubPattern(v){
+  // Toggling a day off/on may put the current start date on a now-unselected
+  // day, so re-clamp it too. Won't let the customer deselect the last day.
+  function toggleSubDay(dow){
     setState(function(s){
-      return { subPattern: v, subStartDate: clampSubStartDateForPattern(s.subStartDate, v) };
+      var days = s.subDaysOfWeek.slice();
+      var idx = days.indexOf(dow);
+      if (idx !== -1){
+        if (days.length === 1) return {};
+        days.splice(idx, 1);
+      } else {
+        days.push(dow);
+      }
+      return { subDaysOfWeek: days, subStartDate: clampSubStartDateForDays(s.subStartDate, days) };
     });
   }
   function incSubAddon(id){
@@ -572,12 +590,12 @@
     var days = state.subDays;
     var bonus = subBonusDays();
     var totalDays = days + bonus;
-    var validUntil = computeSubValidUntilForPattern(state.subStartDate, totalDays, state.subPattern);
+    var validUntil = computeSubValidUntilForDays(state.subStartDate, totalDays, state.subDaysOfWeek);
     setState({
       pendingSubscription: {
         item: m, sugar: state.subSugar, addons: state.subAddons, unitPrice: unit,
         startDate: state.subStartDate, days: days, bonusDays: bonus, totalDays: totalDays, validUntil: validUntil,
-        total: Math.round(unit * days * 100) / 100, remark: state.subRemark, pattern: state.subPattern,
+        total: Math.round(unit * days * 100) / 100, remark: state.subRemark, daysOfWeek: state.subDaysOfWeek,
       },
       screen: 'pay',
     });
@@ -709,7 +727,7 @@
         addons: addonLabels(sub.addons),
         unitPrice: sub.unitPrice,
       }],
-      subStartDate: sub.startDate, subDays: sub.days, subPattern: sub.pattern,
+      subStartDate: sub.startDate, subDays: sub.days, subDaysOfWeek: sub.daysOfWeek,
       subtotal: sub.total, discount: 0, total: sub.total,
       redeemedFreeCup: false,
       remark: remark,
@@ -912,11 +930,9 @@
     var bonus = subBonusDays();
     var totalDays = days + bonus;
     var total = Math.round(unit * days * 100) / 100;
-    var validUntil = computeSubValidUntilForPattern(state.subStartDate, totalDays, state.subPattern);
+    var validUntil = computeSubValidUntilForDays(state.subStartDate, totalDays, state.subDaysOfWeek);
     var maxStartDate = addMonthToDateStr(todayDateStr());
-    var patternHint = state.subPattern === 'weekdays'
-      ? 'Starts within 1 month from today · weekdays only, Mon–Fri (max ' + MAX_SUB_DAYS + ' days)'
-      : 'Starts within 1 month from today · closed on Sundays (max ' + MAX_SUB_DAYS + ' days)';
+    var dayHint = 'Starts within 1 month from today · closed on Sundays (max ' + MAX_SUB_DAYS + ' days)';
 
     var bonusRow = bonus > 0
       ? '<div class="row"><span>🎁 Free cup bonus</span><span>+' + bonus + ' day' + (bonus === 1 ? '' : 's') + '</span></div>'
@@ -935,14 +951,13 @@
         '<div class="pr">$' + money(unit) + '/day</div>' +
         sugarHtml +
         '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' +
-        '<div class="sec-label">Redemption pattern</div>' +
-        '<div class="pattern-toggle">' +
-          '<div class="p-opt' + (state.subPattern === 'mon-sat' ? ' active' : '') + '" data-sub-pattern="mon-sat">Mon–Sat</div>' +
-          '<div class="p-opt' + (state.subPattern === 'weekdays' ? ' active' : '') + '" data-sub-pattern="weekdays">Weekdays only (Mon–Fri)</div>' +
-        '</div>' +
+        '<div class="sec-label">Which days?</div>' +
+        '<div class="day-toggle">' + SUB_DAY_OPTS.map(function(d){
+          return '<div class="d-opt' + (state.subDaysOfWeek.indexOf(d.dow) !== -1 ? ' active' : '') + '" data-sub-day="' + d.dow + '">' + d.label + '</div>';
+        }).join('') + '</div>' +
         '<div class="sec-label">Start date</div>' +
         '<input type="date" class="date-input" id="subStartInput" value="' + esc(state.subStartDate) + '" min="' + todayDateStr() + '" max="' + maxStartDate + '">' +
-        '<div class="date-hint">' + esc(patternHint) + '</div>' +
+        '<div class="date-hint">' + esc(dayHint) + '</div>' +
         '<div class="qty-row"><div class="lbl">Number of days</div><div class="ctrl">' +
           '<div class="btn" id="subDaysDec">–</div><div class="n">' + days + '</div><div class="btn" id="subDaysInc">+</div>' +
         '</div></div>' +
@@ -1232,11 +1247,11 @@
     content.querySelectorAll('[data-sub-addon-dec]').forEach(function(el){
       el.addEventListener('click', function(){ decSubAddon(el.getAttribute('data-sub-addon-dec')); });
     });
-    content.querySelectorAll('[data-sub-pattern]').forEach(function(el){
-      el.addEventListener('click', function(){ setSubPattern(el.getAttribute('data-sub-pattern')); });
+    content.querySelectorAll('[data-sub-day]').forEach(function(el){
+      el.addEventListener('click', function(){ toggleSubDay(parseInt(el.getAttribute('data-sub-day'), 10)); });
     });
     var subStartInput = document.getElementById('subStartInput');
-    if (subStartInput) subStartInput.addEventListener('change', function(e){ setState(function(s){ return { subStartDate: clampSubStartDateForPattern(e.target.value, s.subPattern) }; }); });
+    if (subStartInput) subStartInput.addEventListener('change', function(e){ setState(function(s){ return { subStartDate: clampSubStartDateForDays(e.target.value, s.subDaysOfWeek) }; }); });
     var subDaysInc = document.getElementById('subDaysInc');
     if (subDaysInc) subDaysInc.addEventListener('click', incSubDays);
     var subDaysDec = document.getElementById('subDaysDec');
