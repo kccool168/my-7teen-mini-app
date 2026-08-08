@@ -395,7 +395,7 @@ function formatSubscriptionReceiptMessage(order) {
   lines.push('✅ Order Accepted');
   lines.push(customerStatusLine(order));
   lines.push('');
-  lines.push(`Your Subscription valid until ${esc(formatCalendarDate(order.subValidUntil))}`);
+  lines.push(`Your Subscription valid until ${esc(formatCalendarDate(order.subValidUntil))}: ${esc((order.subDates || []).map(formatCalendarDateShort).join(', '))}`);
   if (order.subBonusDays) lines.push(`🎁 Includes ${order.subBonusDays} free day${order.subBonusDays === 1 ? '' : 's'} from your loyalty reward!`);
   lines.push('');
   lines.push('Thank you for subscribing to 7Teen Café! 💙');
