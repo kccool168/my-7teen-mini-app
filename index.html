@@ -219,9 +219,11 @@
 
   /* Fallback main button (used when not inside Telegram) */
   #main-btn-wrap{position:fixed;left:0;right:0;bottom:0;max-width:430px;margin:0 auto;padding:8px 16px 20px;background:linear-gradient(to top,var(--bg) 60%,rgba(251,241,225,0));display:none;z-index:6}
-  #main-btn-wrap.show{display:block}
-  #main-btn{height:50px;border-radius:14px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer}
+  #main-btn-wrap.show{display:flex;gap:10px}
+  #main-btn{flex:1;height:50px;border-radius:14px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer}
   #main-btn:active{background:var(--accent-dark)}
+  #main-btn2{flex:1;height:50px;border-radius:14px;background:var(--chip-bg);color:var(--chip-text);display:none;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer}
+  #main-btn2:active{background:var(--border)}
 
   #content.has-fallback-btn{padding-bottom:90px}
 
@@ -239,7 +241,7 @@
   </div>
   <div id="content"></div>
   <div id="cart-bar"></div>
-  <div id="main-btn-wrap"><div id="main-btn"></div></div>
+  <div id="main-btn-wrap"><div id="main-btn"></div><div id="main-btn2"></div></div>
 </div>
 
 <script>
@@ -1173,7 +1175,7 @@
   // ---- main button (Telegram native, fallback custom) ----
   function updateMainButton(){
     var showMain = ['item','cart','pay','subscribe','confirm'].indexOf(state.screen) !== -1;
-    var label, action;
+    var label, action, label2 = null, action2 = null;
     if (state.screen === 'confirm'){
       label = 'Done';
       action = backHome;
@@ -1195,12 +1197,15 @@
       label = "Pay · $" + money(totals.total);
       action = goPay;
     } else if (state.screen === 'pay'){
-      label = "I've Paid";
+      label = "I've Paid ✅";
       action = pay;
+      label2 = 'Pay Later ☑️';
+      action2 = pay;
     }
 
     var wrap = document.getElementById('main-btn-wrap');
     var btn = document.getElementById('main-btn');
+    var btn2 = document.getElementById('main-btn2');
 
     if (tg && tg.MainButton){
       if (showMain){
@@ -1212,6 +1217,17 @@
       } else {
         tg.MainButton.hide();
       }
+      if (tg.SecondaryButton){
+        if (label2){
+          tg.SecondaryButton.setText(label2);
+          tg.SecondaryButton.show();
+          tg.SecondaryButton.offClick(secondaryButtonHandler);
+          secondaryButtonHandler = action2;
+          tg.SecondaryButton.onClick(secondaryButtonHandler);
+        } else {
+          tg.SecondaryButton.hide();
+        }
+      }
       wrap.className = '';
       document.getElementById('content').className = '';
     } else {
@@ -1219,14 +1235,23 @@
         wrap.className = 'show';
         btn.textContent = label;
         btn.onclick = action;
+        if (label2){
+          btn2.style.display = 'flex';
+          btn2.textContent = label2;
+          btn2.onclick = action2;
+        } else {
+          btn2.style.display = 'none';
+        }
         document.getElementById('content').className = 'has-fallback-btn';
       } else {
         wrap.className = '';
+        btn2.style.display = 'none';
         document.getElementById('content').className = '';
       }
     }
   }
   var mainButtonHandler = null;
+  var secondaryButtonHandler = null;
 
   // ---- event binding ----
   function bindScreenEvents(){
