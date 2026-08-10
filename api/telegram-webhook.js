@@ -214,8 +214,8 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
 }
 
 async function handleMessage(message, BOT_TOKEN) {
-  const text = message && typeof message.text === 'string' ? message.text.trim() : '';
-  if (/^\/skip\b/i.test(text) && message.from && message.chat) {
+  const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
+  if (/^\/skip\b/i.test(skipCommandText) && message.from && message.chat) {
     const reply = await skipSubscriptionDay(BOT_TOKEN, String(message.from.id));
     await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
     return;
