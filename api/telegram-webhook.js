@@ -186,7 +186,7 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
   }
 
   if (!order.subStartDate || !Array.isArray(order.subDaysOfWeek)) {
-    return "Your subscription record is missing schedule data, so it can't be skipped automatically — please contact staff.";
+    return 'DEBUG keys=' + Object.keys(order).join(',') + ' subStartDate=' + JSON.stringify(order.subStartDate) + ' subDaysOfWeek=' + JSON.stringify(order.subDaysOfWeek) + ' orderType=' + JSON.stringify(order.orderType) + ' orderCode=' + JSON.stringify(orderCode);
   }
   const extended = computeSubDates(order.subStartDate, dates.length + 1, order.subDaysOfWeek);
   const newDate = extended[extended.length - 1];
