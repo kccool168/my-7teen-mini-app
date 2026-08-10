@@ -158,6 +158,28 @@ export default async function handler(req, res) {
     const subDates = computeSubDates(subStartDate, totalDays, subDaysOfWeek);
     appliedTotal = Math.round(unitPrice * subDays * 100) / 100;
 
+    // ---- Loyalty stamps: subscriptions earn one stamp per PAID day
+    //      (bonus/free days don't earn new stamps), using the same
+    //      Redis-backed counters as regular cart orders. Also tracks the
+    //      HIGHEST price-per-cup earned since the last redemption as the
+    //      cap for the next free-cup discount. ----
+    if (subUserId && subDays > 0) {
+      try {
+        const client = redisClient || (await getClient());
+        redisClient = client;
+        const totalKey = `user:${subUserId}:total`;
+        const lastPriceKey = `user:${subUserId}:lastPrice`;
+        const priorLastPriceStr = await client.get(lastPriceKey);
+        const priorLastCupPrice = priorLastPriceStr != null ? parseFloat(priorLastPriceStr) : null;
+        await client.incrBy(totalKey, subDays);
+        const priorMax = freeCupApplied ? 0 : (priorLastCupPrice || 0);
+        const newMaxPrice = Math.max(priorMax, unitPrice);
+        await client.set(lastPriceKey, newMaxPrice.toFixed(2));
+      } catch (err) {
+        console.error('Stamp persistence failed for subscription', err);
+      }
+    }
+
     resolvedOrder = Object.assign({}, order, {
       orderCode,
       orderType: 'subscription',
@@ -216,12 +238,16 @@ export default async function handler(req, res) {
         stamps = newTotal % STAMPS_NEEDED;
         freeCups = Math.max(0, Math.floor(newTotal / STAMPS_NEEDED) - used2);
 
-        // Record this order's price-per-cup as the cap for the *next*
-        // redemption.
+        // Track the HIGHEST price-per-cup earned since the last
+        // redemption (not just the most recent order) as the cap for
+        // the *next* redemption — e.g. a $1.75 cup followed by a $1.25
+        // cup should still cap the discount at $1.75.
         if (cupsInOrder > 0) {
           const pricePerCup = subtotal / cupsInOrder;
-          await client.set(lastPriceKey, pricePerCup.toFixed(2));
-          lastCupPrice = Math.round(pricePerCup * 100) / 100;
+          const priorMax = redeemApplied ? 0 : (priorLastCupPrice || 0);
+          const newMaxPrice = Math.max(priorMax, pricePerCup);
+          await client.set(lastPriceKey, newMaxPrice.toFixed(2));
+          lastCupPrice = Math.round(newMaxPrice * 100) / 100;
         }
       } catch (err) {
         console.error('Stamp persistence failed', err);
