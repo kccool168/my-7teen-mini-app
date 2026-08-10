@@ -27,6 +27,8 @@ import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDate
 import { pushOrderToSheet } from './_sheets.js';
 
 const STAMPS_NEEDED = 6;
+const MIN_STAMP_PRICE = 1.25; // cups priced below this don't earn a stamp
+const MAX_REDEEM_PRICE = 1.75; // free-cup discount never exceeds this, regardless of earned cap
 const ORDER_TTL_SECONDS = 60 * 60 * 24 * 14; // 14 days
 const MAX_SUB_DAYS = 6;
 // The café is always closed Sundays, so 0 is never a valid choice — the
@@ -171,7 +173,8 @@ export default async function handler(req, res) {
         const lastPriceKey = `user:${subUserId}:lastPrice`;
         const priorLastPriceStr = await client.get(lastPriceKey);
         const priorLastCupPrice = priorLastPriceStr != null ? parseFloat(priorLastPriceStr) : null;
-        await client.incrBy(totalKey, subDays);
+        const subStampEarningDays = unitPrice >= MIN_STAMP_PRICE ? subDays : 0;
+        await client.incrBy(totalKey, subStampEarningDays);
         const priorMax = freeCupApplied ? 0 : (priorLastCupPrice || 0);
         const newMaxPrice = Math.max(priorMax, unitPrice);
         await client.set(lastPriceKey, newMaxPrice.toFixed(2));
@@ -227,14 +230,18 @@ export default async function handler(req, res) {
         if (redeemApplied) {
           const maxUnitPrice = order.items.reduce((max, item) => Math.max(max, Number(item.unitPrice) || 0), 0);
           appliedDiscount = (priorLastCupPrice != null && !isNaN(priorLastCupPrice))
-            ? Math.min(maxUnitPrice, priorLastCupPrice)
-            : maxUnitPrice;
+            ? Math.min(maxUnitPrice, priorLastCupPrice, MAX_REDEEM_PRICE)
+            : Math.min(maxUnitPrice, MAX_REDEEM_PRICE);
         }
         appliedTotal = Math.max(0, subtotal - appliedDiscount);
 
         // A redeemed cup is paid $0, so it shouldn't also earn a new stamp —
         // only cups that were actually paid for count toward the next one.
-        const stampEarningCups = Math.max(0, cupsInOrder - (redeemApplied ? 1 : 0));
+        const eligibleCups = order.items.reduce((sum, item) => {
+          const price = Number(item.unitPrice) || 0;
+          return sum + (price >= MIN_STAMP_PRICE ? (Number(item.qty) || 0) : 0);
+        }, 0);
+        const stampEarningCups = Math.max(0, eligibleCups - (redeemApplied ? 1 : 0));
         const newTotal = await client.incrBy(totalKey, stampEarningCups);
         const usedStr2 = await client.get(usedKey);
         const used2 = parseInt(usedStr2 || '0', 10) || 0;
