@@ -150,7 +150,7 @@ async function sendPlainMessage(BOT_TOKEN, chatId, text) {
 //      today's scheduled cup. Today is dropped from the schedule and one
 //      extra qualifying day is appended at the end so they don't lose a
 //      day they already paid for. ----
-async function skipSubscriptionDay(userId) {
+async function skipSubscriptionDay(BOT_TOKEN, userId) {
   const client = await getClient();
   const orderCodes = await client.sMembers('active_subscriptions');
   let order = null;
@@ -201,13 +201,22 @@ async function skipSubscriptionDay(userId) {
   const setOpts = ttl && ttl > 0 ? { EX: ttl } : {};
   await client.set(key, JSON.stringify(order), setOpts);
 
+  // Let staff know in the group so they're not left wondering where a
+  // subscriber is, and refresh the existing report card with the new dates.
+  await editGroupMessage(BOT_TOKEN, order, order.status);
+  if (order.chatId) {
+    const customerName = order.customer ? [order.customer.firstName, order.customer.lastName].filter(Boolean).join(' ') : '';
+    const who = customerName || 'A customer';
+    await sendPlainMessage(BOT_TOKEN, order.chatId, `⏭️ ${who} skipped today's cup (order #${orderCode}). New valid until: ${formatCalendarDate(order.subValidUntil)}.`);
+  }
+
   return `Got it — skipped today. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}.`;
 }
 
 async function handleMessage(message, BOT_TOKEN) {
   const text = message && typeof message.text === 'string' ? message.text.trim() : '';
   if (/^\/skip\b/i.test(text) && message.from && message.chat) {
-    const reply = await skipSubscriptionDay(String(message.from.id));
+    const reply = await skipSubscriptionDay(BOT_TOKEN, String(message.from.id));
     await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
     return;
   }
