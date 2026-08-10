@@ -185,6 +185,9 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
     return 'Today is already marked as skipped.';
   }
 
+  if (!order.subStartDate || !Array.isArray(order.subDaysOfWeek)) {
+    return "Your subscription record is missing schedule data, so it can't be skipped automatically — please contact staff.";
+  }
   const extended = computeSubDates(order.subStartDate, dates.length + 1, order.subDaysOfWeek);
   const newDate = extended[extended.length - 1];
   dates.splice(idx, 1);
@@ -216,7 +219,13 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
 async function handleMessage(message, BOT_TOKEN) {
   const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
   if (/^\/skip\b/i.test(skipCommandText) && message.from && message.chat) {
-    const reply = await skipSubscriptionDay(BOT_TOKEN, String(message.from.id));
+    let reply;
+    try {
+      reply = await skipSubscriptionDay(BOT_TOKEN, String(message.from.id));
+    } catch (err) {
+      console.error('/skip command failed', err);
+      reply = 'Something went wrong processing /skip — please try again, or let staff know if it keeps happening. (' + (err && err.message ? err.message : 'unknown error') + ')';
+    }
     await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
     return;
   }
