@@ -906,7 +906,8 @@
       }).join('') + '</div>'
     ) : '';
 
-    var addonsHtml = ADDON_OPTS.map(function(ad){
+    var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS;
+    var addonsHtml = itemAddonOpts.map(function(ad){
       var qty = state.addons[ad.id] || 0;
       return '<div class="addon-item">' +
         '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
@@ -944,7 +945,8 @@
       }).join('') + '</div>'
     ) : '';
 
-    var addonsHtml = ADDON_OPTS.map(function(ad){
+    var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS;
+    var addonsHtml = itemAddonOpts.map(function(ad){
       var qty = state.subAddons[ad.id] || 0;
       return '<div class="addon-item">' +
         '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
