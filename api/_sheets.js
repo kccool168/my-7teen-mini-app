@@ -22,14 +22,14 @@ export async function pushOrderToSheet(order) {
   }
 }
 
-export async function pushStatusToSheet(orderCode, status, confirmedBy) {
+export async function pushStatusToSheet(orderCode, status, confirmedBy, extra) {
   const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
   if (!url || !orderCode) return;
   try {
     await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'updateStatus', orderCode, status, confirmedBy: confirmedBy || '' }),
+      body: JSON.stringify(Object.assign({ action: 'updateStatus', orderCode, status, confirmedBy: confirmedBy || '' }, extra || {})),
     });
   } catch (err) {
     console.error('Sheet sync (updateStatus) failed', err);
