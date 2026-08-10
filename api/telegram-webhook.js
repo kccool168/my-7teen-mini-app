@@ -232,6 +232,11 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
     await sendPlainMessage(BOT_TOKEN, order.chatId, `⏭️ ${who} skipped today's cup (order #${orderCode}). New valid until: ${formatCalendarDate(order.subValidUntil)}.`);
   }
 
+  // Keep the Google Sheet order log's "Sub Valid Until" column current
+  // too (best-effort — never blocks the reply if the sheet sync doesn't
+  // pick up the extra field).
+  await pushStatusToSheet(orderCode, order.status, order.confirmedByName, { subValidUntil: order.subValidUntil });
+
   return `Got it — skipped today. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}.`;
 }
 
