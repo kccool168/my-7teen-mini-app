@@ -232,7 +232,10 @@ export default async function handler(req, res) {
         }
         appliedTotal = Math.max(0, subtotal - appliedDiscount);
 
-        const newTotal = await client.incrBy(totalKey, cupsInOrder);
+        // A redeemed cup is paid $0, so it shouldn't also earn a new stamp —
+        // only cups that were actually paid for count toward the next one.
+        const stampEarningCups = Math.max(0, cupsInOrder - (redeemApplied ? 1 : 0));
+        const newTotal = await client.incrBy(totalKey, stampEarningCups);
         const usedStr2 = await client.get(usedKey);
         const used2 = parseInt(usedStr2 || '0', 10) || 0;
         stamps = newTotal % STAMPS_NEEDED;
@@ -242,8 +245,8 @@ export default async function handler(req, res) {
         // redemption (not just the most recent order) as the cap for
         // the *next* redemption — e.g. a $1.75 cup followed by a $1.25
         // cup should still cap the discount at $1.75.
-        if (cupsInOrder > 0) {
-          const pricePerCup = subtotal / cupsInOrder;
+        if (stampEarningCups > 0) {
+          const pricePerCup = appliedTotal / stampEarningCups;
           const priorMax = redeemApplied ? 0 : (priorLastCupPrice || 0);
           const newMaxPrice = Math.max(priorMax, pricePerCup);
           await client.set(lastPriceKey, newMaxPrice.toFixed(2));
