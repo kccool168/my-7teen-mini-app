@@ -134,9 +134,9 @@
   .empty-cart .t2{font-size:13px;margin-top:6px}
   .cart-list{padding:14px 16px 8px;display:flex;flex-direction:column;gap:10px}
   .cart-row{display:flex;align-items:center;gap:12px;padding:10px;background:var(--card);border-radius:16px;border:1px solid var(--border)}
-  .cart-row .thumb{width:52px;height:52px;border-radius:12px;flex-shrink:0;overflow:hidden;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 6px,#dceefa 6px,#dceefa 12px)}
+  .cart-row .thumb{width:52px;height:52px;border-radius:12px;flex-shrink:0;overflow:hidden;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 6px,#dceefa 6px,#dceefa 12px)}
   .cart-row .thumb img{width:100%;height:100%;object-fit:cover;display:block}
-  .cart-row .info{flex:1;min-width:0}
+  .cart-row .info{flex:1;min-width:0;cursor:pointer}
   .cart-row .info .nm{font-weight:700;font-size:14px}
   .cart-row .info .dt{font-size:11.5px;color:var(--text-soft2);margin-top:1px}
   .cart-row .info .pr{font-weight:800;font-size:13px;color:var(--accent);margin-top:2px}
@@ -443,7 +443,7 @@
     paymentStatus: null,
     menuLayout: 'vertical',
     subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
-    pendingSubscription: null, confirmSubInfo: null, orderTime: null,
+    pendingSubscription: null, confirmSubInfo: null, orderTime: null, editingCartKey: null,
   };
 
   function setState(patch){
@@ -499,6 +499,7 @@
       return;
     }
     if (s === 'subscribe'){ setState({ screen: 'item' }); return; }
+    if (s === 'item' && state.editingCartKey){ setState({ screen: 'cart', editingCartKey: null }); return; }
     setState({ screen: 'home' });
   }
   function goCart(){ setState({ screen: 'cart' }); }
@@ -506,7 +507,12 @@
   function goRewards(){ setState({ screen: 'rewards' }); }
   function setCategory(c){ setState({ category: c }); }
   function setMenuLayout(v){ setState({ menuLayout: v }); }
-  function openItem(id){ setState({ screen: 'item', selectedItemId: id, itemQty: 1, sugar: '100%', addons: {} }); }
+  function openItem(id){ setState({ screen: 'item', selectedItemId: id, itemQty: 1, sugar: '100%', addons: {}, editingCartKey: null }); }
+  function openCartItemForEdit(key){
+    var e = state.cart[key];
+    if (!e) return;
+    setState({ screen: 'item', selectedItemId: e.id, itemQty: e.qty, sugar: e.sugar, addons: Object.assign({}, e.addons), editingCartKey: key });
+  }
   function incItemQty(){ setState(function(s){ return { itemQty: Math.min(9, s.itemQty + 1) }; }); }
   function decItemQty(){ setState(function(s){ return { itemQty: Math.max(1, s.itemQty - 1) }; }); }
   function setSugar(v){ setState({ sugar: v }); }
@@ -532,11 +538,13 @@
   function addToCart(){
     var id = state.selectedItemId, qty = state.itemQty, sugar = state.sugar, addons = state.addons;
     var key = cartKey(id, sugar, addons);
+    var editingKey = state.editingCartKey;
     setState(function(s){
       var cart = Object.assign({}, s.cart);
-      var existing = cart[key];
+      if (editingKey && editingKey !== key) delete cart[editingKey];
+      var existing = (editingKey === key) ? null : cart[key];
       cart[key] = { id: id, sugar: sugar, addons: addons, qty: (existing ? existing.qty : 0) + qty };
-      return { cart: cart, screen: 'home' };
+      return { cart: cart, screen: editingKey ? 'cart' : 'home', editingCartKey: null };
     });
   }
   function cartInc(id, sugar, addons){
@@ -821,6 +829,7 @@
 
   // ---- render helpers ----
   function screenTitle(){
+    if (state.screen === 'item' && state.editingCartKey) return 'Edit item';
     return { home:'7Teen Café', item:'Item', cart:'Your bag', pay:'Payment', confirm:'Order placed', rewards:'Rewards', subscribe:'Subscribe' }[state.screen];
   }
 
@@ -1012,8 +1021,8 @@
       var thumb = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '';
       return '' +
         '<div class="cart-row">' +
-          '<div class="thumb">' + thumb + '</div>' +
-          '<div class="info">' +
+          '<div class="thumb" data-edit-cart="' + key + '">' + thumb + '</div>' +
+          '<div class="info" data-edit-cart="' + key + '">' +
             '<div class="nm">' + esc(m.name) + '</div>' +
             (detailParts.length ? '<div class="dt">' + esc(detailParts.join(', ')) + '</div>' : '') +
             '<div class="pr">$' + money(unit * e.qty) + '</div>' +
@@ -1183,7 +1192,7 @@
     } else if (state.screen === 'item'){
       var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
       var unit = unitPrice(m, state.sugar, state.addons);
-      label = 'Add to bag · $' + money(unit * state.itemQty);
+      label = (state.editingCartKey ? 'Update bag · $' : 'Add to bag · $') + money(unit * state.itemQty);
       action = addToCart;
     } else if (state.screen === 'subscribe'){
       var sm = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
@@ -1315,6 +1324,9 @@
       });
     }
 
+    content.querySelectorAll('[data-edit-cart]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); openCartItemForEdit(el.getAttribute('data-edit-cart')); });
+    });
     content.querySelectorAll('[data-cart-inc]').forEach(function(el){
       el.addEventListener('click', function(){
         var key = el.getAttribute('data-cart-inc'); var e = state.cart[key];
