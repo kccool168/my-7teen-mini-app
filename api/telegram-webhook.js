@@ -150,6 +150,22 @@ async function sendPlainMessage(BOT_TOKEN, chatId, text) {
 //      today's scheduled cup. Today is dropped from the schedule and one
 //      extra qualifying day is appended at the end so they don't lose a
 //      day they already paid for. ----
+// Walks forward day-by-day from the last date already in `dates`, using
+// the weekday pattern implied by `dates` itself, until it finds a
+// qualifying date not already in the list.
+function nextQualifyingDate(dates) {
+  if (!dates.length) return null;
+  const dow = new Set(dates.map(function (d) { return new Date(d + 'T00:00:00Z').getUTCDay(); }));
+  const sorted = dates.slice().sort();
+  const cur = new Date(sorted[sorted.length - 1] + 'T00:00:00Z');
+  for (let i = 0; i < 30; i++) {
+    cur.setUTCDate(cur.getUTCDate() + 1);
+    const iso = cur.toISOString().slice(0, 10);
+    if (dow.has(cur.getUTCDay()) && dates.indexOf(iso) === -1) return iso;
+  }
+  return null;
+}
+
 async function skipSubscriptionDay(BOT_TOKEN, userId) {
   const client = await getClient();
   const orderCodes = await client.sMembers('active_subscriptions');
@@ -185,11 +201,14 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
     return 'Today is already marked as skipped.';
   }
 
-  if (!order.subStartDate || !Array.isArray(order.subDaysOfWeek)) {
-    return 'DEBUG keys=' + Object.keys(order).join(',') + ' subStartDate=' + JSON.stringify(order.subStartDate) + ' subDaysOfWeek=' + JSON.stringify(order.subDaysOfWeek) + ' orderType=' + JSON.stringify(order.orderType) + ' orderCode=' + JSON.stringify(orderCode);
+  // Derive the weekday pattern and the next qualifying date directly from
+  // the order's own subDates history — this works regardless of which
+  // schema version the order was created under (older orders may not have
+  // a subDaysOfWeek field at all).
+  const newDate = nextQualifyingDate(dates);
+  if (!newDate) {
+    return "Couldn't work out your next subscription day — please contact staff.";
   }
-  const extended = computeSubDates(order.subStartDate, dates.length + 1, order.subDaysOfWeek);
-  const newDate = extended[extended.length - 1];
   dates.splice(idx, 1);
   dates.push(newDate);
   dates.sort();
