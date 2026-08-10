@@ -16,7 +16,7 @@
 // Redis and edits both the staff group message and the customer's own
 // receipt message in place, so both stay in sync with the real status.
 import getClient from './_redis.js';
-import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh } from './_format.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh, computeSubDates, formatCalendarDate } from './_format.js';
 import { pushStatusToSheet } from './_sheets.js';
 
 const MONTHS = {
@@ -134,7 +134,84 @@ async function answerCallback(BOT_TOKEN, callbackQueryId, text, showAlert) {
 
 // ---- Bank notification group messages ----
 
+async function sendPlainMessage(BOT_TOKEN, chatId, text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch (err) {
+    console.error('sendPlainMessage failed', err);
+  }
+}
+
+// ---- "/skip" — a subscriber types this in their DM with the bot to skip
+//      today's scheduled cup. Today is dropped from the schedule and one
+//      extra qualifying day is appended at the end so they don't lose a
+//      day they already paid for. ----
+async function skipSubscriptionDay(userId) {
+  const client = await getClient();
+  const orderCodes = await client.sMembers('active_subscriptions');
+  let order = null;
+  let orderCode = null;
+  for (const code of orderCodes) {
+    const raw = await client.get(`order:${code}`);
+    if (!raw) continue;
+    let o;
+    try { o = JSON.parse(raw); } catch (err) { continue; }
+    if (o.customer && String(o.customer.id) === userId) {
+      order = o;
+      orderCode = code;
+      break;
+    }
+  }
+  if (!order) {
+    return "You don't have an active subscription right now.";
+  }
+
+  const today = todayInPhnomPenh();
+  const dates = Array.isArray(order.subDates) ? order.subDates.slice() : [];
+  const idx = dates.indexOf(today);
+  if (idx === -1) {
+    return "You don't have a subscription day scheduled for today, so there's nothing to skip.";
+  }
+  const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates : [];
+  if (redeemed.indexOf(today) !== -1) {
+    return "Today's cup is already redeemed, so it can't be skipped.";
+  }
+  const skipped = Array.isArray(order.subSkippedDates) ? order.subSkippedDates.slice() : [];
+  if (skipped.indexOf(today) !== -1) {
+    return 'Today is already marked as skipped.';
+  }
+
+  const extended = computeSubDates(order.subStartDate, dates.length + 1, order.subDaysOfWeek);
+  const newDate = extended[extended.length - 1];
+  dates.splice(idx, 1);
+  dates.push(newDate);
+  dates.sort();
+  skipped.push(today);
+
+  order.subDates = dates;
+  order.subSkippedDates = skipped;
+  order.subValidUntil = dates[dates.length - 1];
+
+  const key = `order:${orderCode}`;
+  const ttl = await client.ttl(key);
+  const setOpts = ttl && ttl > 0 ? { EX: ttl } : {};
+  await client.set(key, JSON.stringify(order), setOpts);
+
+  return `Got it — skipped today. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}.`;
+}
+
 async function handleMessage(message, BOT_TOKEN) {
+  const text = message && typeof message.text === 'string' ? message.text.trim() : '';
+  if (/^\/skip\b/i.test(text) && message.from && message.chat) {
+    const reply = await skipSubscriptionDay(String(message.from.id));
+    await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
+    return;
+  }
+
   const BANK_CHAT_ID = process.env.BANK_NOTIFY_CHAT_ID;
   const chatId = message.chat && message.chat.id;
 
