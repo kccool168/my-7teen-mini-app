@@ -325,6 +325,15 @@
     var day = String(d.getDate()).padStart(2, '0');
     return y + '-' + m + '-' + day;
   }
+  // Current hour (0-23) in Cambodia local time, regardless of the device's
+  // own timezone — used to pause ordering 7:00-8:00 AM while that
+  // morning's cups are out for delivery.
+  function nowHourPhnomPenh(){
+    var parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Phnom_Penh', hour: '2-digit', hour12: false }).formatToParts(new Date());
+    var h = parts.find(function(p){ return p.type === 'hour'; });
+    return h ? parseInt(h.value, 10) : new Date().getHours();
+  }
+  function isDeliveryWindow(){ return nowHourPhnomPenh() === 7; }
   function addDaysToDateStr(dateStr, n){
     var p = dateStr.split('-').map(Number);
     var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
@@ -901,7 +910,7 @@
     return '' +
       '<div class="cutoff-banner" style="margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:#FFF3CD;color:#7A5B00;font-size:13px;font-weight:600;line-height:1.4;display:flex;gap:8px;align-items:flex-start;">' +
       '<span>⏰</span>' +
-      '<span>Please place your order before 7:00 AM. Orders placed after 7:00 AM will be prepared for the next day.</span>' +
+      '<span>Please place your order before 7:00 AM. Orders placed after 7:00 AM will be prepared for the next delivery round.</span>' +
       '</div>' +
       '<div class="home-top">' +
         '<img class="logo" src="assets/7Teen_Logo.png" alt="7Teen Café">' +
@@ -1054,6 +1063,9 @@
       '<div class="row discount"><span>Free cup reward</span><span>–$' + money(totals.discount) + '</span></div>'
     ) : '';
 
+    var deliveryNoticeHtml = isDeliveryWindow() ? (
+      '<div class="delivery-notice" style="margin:12px 16px;padding:12px 14px;border-radius:14px;background:#E7F2FA;color:#145E90;font-size:13px;font-weight:700;text-align:center;">🚚 Delivery on the way... Ordering will reopen at 8:00 AM.</div>'
+      ) : '';
     var pickupHtml = '' +
       '<div class="sec-label">Pickup time</div>' +
       '<div class="day-toggle pickup-toggle">' +
@@ -1069,6 +1081,7 @@
 
     return '' +
       '<div class="cart-list">' + rowsHtml + '</div>' +
+      deliveryNoticeHtml +
       pickupHtml +
       redeemHtml +
       remarkHtml +
@@ -1203,6 +1216,9 @@
   // ---- main button (Telegram native, fallback custom) ----
   function updateMainButton(){
     var showMain = ['item','cart','pay','subscribe','confirm'].indexOf(state.screen) !== -1;
+// Single-order checkout pauses 7:00-8:00 AM while that morning's cups
+    // are out for delivery — subscriptions and browsing are unaffected.
+    if ((state.screen === 'cart' || state.screen === 'pay') && !state.pendingSubscription && isDeliveryWindow()){ showMain = false; }
     var label, action, label2 = null, action2 = null;
     if (state.screen === 'confirm'){
       label = 'Done';
