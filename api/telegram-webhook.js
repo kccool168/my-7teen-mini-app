@@ -16,7 +16,7 @@
 // Redis and edits both the staff group message and the customer's own
 // receipt message in place, so both stay in sync with the real status.
 import getClient from './_redis.js';
-import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh, computeSubDates, formatCalendarDate } from './_format.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh, nowTimePhnomPenh, computeSubDates, formatCalendarDate } from './_format.js';
 import { pushStatusToSheet } from './_sheets.js';
 
 const MONTHS = {
@@ -243,6 +243,13 @@ async function skipSubscriptionDay(BOT_TOKEN, userId) {
 async function handleMessage(message, BOT_TOKEN) {
   const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
   if (/^\/skip\b/i.test(skipCommandText) && message.from && message.chat) {
+    // /skip only works before 7:00 AM Cambodia time — after that, the
+    // morning's cups are already being prepared/delivered, so a skip can
+    // no longer be applied in time.
+    if (nowTimePhnomPenh().hour >= 7) {
+      await sendPlainMessage(BOT_TOKEN, message.chat.id, "⏰ Sorry, /skip is only available before 7:00 AM. Today's order is already being prepared — please message staff directly if you need a change.");
+      return;
+    }
     let reply;
     try {
       reply = await skipSubscriptionDay(BOT_TOKEN, String(message.from.id));
