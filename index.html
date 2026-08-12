@@ -444,6 +444,7 @@
     remark: '', lastCupPrice: null,
     paymentStatus: null,
     menuLayout: 'vertical',
+    pickupSlot: null,
     subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
     pendingSubscription: null, confirmSubInfo: null, orderTime: null, editingCartKey: null,
   };
@@ -536,6 +537,7 @@
     });
   }
   function toggleRedeem(){ setState(function(s){ return { redeemFreeCup: !s.redeemFreeCup }; }); }
+  function setPickupSlot(v){ setState({ pickupSlot: v }); }
 
   function addToCart(){
     var id = state.selectedItemId, qty = state.itemQty, sugar = state.sugar, addons = state.addons;
@@ -730,6 +732,7 @@
       subtotal: totals.subtotal, discount: totals.discount, total: totals.total,
       redeemedFreeCup: !!spentFreeCup,
       remark: remark,
+      pickupSlot: state.pickupSlot,
       customer: tgUser ? {
         id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username,
       } : null,
@@ -748,6 +751,7 @@
       screen: 'confirm', orderCode: null, cart: {},
       redeemFreeCup: false, showReceiptNotice: false, remark: '',
       paymentStatus: 'pending', orderTime: timestamp, confirmSubInfo: null,
+      pickupSlot: null,
     });
 
     sendOrder(orderPayload);
@@ -895,6 +899,10 @@
       '</div></div>';
 
     return '' +
+      '<div class="cutoff-banner" style="margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:#FFF3CD;color:#7A5B00;font-size:13px;font-weight:600;line-height:1.4;display:flex;gap:8px;align-items:flex-start;">' +
+      '<span>⏰</span>' +
+      '<span>Please place your order before 7:00 AM. Orders placed after 7:00 AM will be prepared for the next day.</span>' +
+      '</div>' +
       '<div class="home-top">' +
         '<img class="logo" src="assets/7Teen_Logo.png" alt="7Teen Café">' +
         '<div class="greet"><div class="hey">Hey ' + heroName + ' 👋</div><div class="q">What are you feeling today?</div></div>' +
@@ -1046,6 +1054,13 @@
       '<div class="row discount"><span>Free cup reward</span><span>–$' + money(totals.discount) + '</span></div>'
     ) : '';
 
+    var pickupHtml = '' +
+      '<div class="sec-label">Pickup time</div>' +
+      '<div class="day-toggle pickup-toggle">' +
+      '<div class="d-opt' + (state.pickupSlot === 'morning' ? ' active' : '') + '" data-pickup-slot="morning">🌅 Morning</div>' +
+      '<div class="d-opt' + (state.pickupSlot === 'afternoon' ? ' active' : '') + '" data-pickup-slot="afternoon">☀️ Afternoon</div>' +
+      '</div>';
+    
     var remarkHtml = '' +
       '<div class="remark-box">' +
         '<div class="remark-label"><span>Order remark</span><span class="count" id="remarkCount">' + state.remark.length + '/50</span></div>' +
@@ -1054,6 +1069,7 @@
 
     return '' +
       '<div class="cart-list">' + rowsHtml + '</div>' +
+      pickupHtml +
       redeemHtml +
       remarkHtml +
       '<div class="totals">' +
@@ -1206,6 +1222,7 @@
       var totals = computeTotal();
       var keys = Object.keys(state.cart);
       if (keys.length === 0){ showMain = false; }
+      if (!state.pickupSlot){ showMain = false; }
       label = "Pay · $" + money(totals.total);
       action = goPay;
     } else if (state.screen === 'pay'){
@@ -1344,6 +1361,10 @@
 
     var redeemToggle = document.getElementById('redeemToggle');
     if (redeemToggle) redeemToggle.addEventListener('click', toggleRedeem);
+
+    content.querySelectorAll('[data-pickup-slot]').forEach(function(el){
+      el.addEventListener('click', function(){ setPickupSlot(el.getAttribute('data-pickup-slot')); });
+    });
 
     // Update state.remark directly (no setState/full re-render) so the
     // textarea keeps focus and cursor position while typing.
