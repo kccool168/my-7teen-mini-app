@@ -166,7 +166,10 @@ export function formatDailySummaryMessage(orders, dateStr) {
   orders.forEach((order, i) => {
     const isSub = order.orderType === 'subscription';
     const itemsSummary = Array.isArray(order.items)
-      ? order.items.map((item) => `${item.qty}x ${esc(item.name)}`).join(', ')
+      ? order.items.map((item) => {
+        const addonStr = (item.addons && item.addons.length) ? ` (${item.addons.map(esc).join(', ')})` : '';
+        return `${item.qty}x ${esc(item.name)}${addonStr}`;
+      }).join(', ')
       : '';
     const custObj = order.customer || {};
     const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
