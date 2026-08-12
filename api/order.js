@@ -74,6 +74,14 @@ export default async function handler(req, res) {
 
   const isSubscription = order.orderType === 'subscription';
 
+// Regular (non-subscription) orders must declare a pickup slot so
+  // customers and staff both know whether the drink is for Morning or
+  // Afternoon pickup — this was previously ambiguous and caused missed
+  // orders. No cutoff time; the customer freely picks either slot.
+  if (!isSubscription && order.pickupSlot !== 'morning' && order.pickupSlot !== 'afternoon') {
+      return res.status(400).json({ ok: false, error: 'Order must include a valid pickup slot (morning or afternoon)' });
+  }
+  
   // Customer's optional note, capped to 50 chars regardless of what the
   // client sent.
   const remark = typeof order.remark === 'string' ? order.remark.trim().slice(0, 50) : '';
