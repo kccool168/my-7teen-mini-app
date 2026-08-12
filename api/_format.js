@@ -146,6 +146,13 @@ export function todayInPhnomPenh() {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+// Human-readable label for a regular order's pickup slot ('morning' /
+// 'afternoon'), or '' if missing/unrecognized (e.g. older orders placed
+// before this field existed, or subscriptions, which don't use it).
+function pickupSlotLabel(order) {
+  return order.pickupSlot === 'morning' ? 'Morning' : order.pickupSlot === 'afternoon' ? 'Afternoon' : '';
+}
+
 // Builds the daily consolidated order report sent to the staff group each
 // morning (see api/daily-order-summary.js) — every order placed from
 // 1:30 PM on the given Phnom Penh calendar day through 6:29 AM the next
@@ -174,7 +181,8 @@ export function formatDailySummaryMessage(orders, dateStr) {
     const custObj = order.customer || {};
     const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
     const statusIcon = order.status === 'paid' ? '✅ Paid' : order.status === 'unpaid' ? '❌ Not received' : '⏳ Pending';
-    const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d)` : '';
+    const pickupLabel = pickupSlotLabel(order);
+    const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d)` : (pickupLabel ? ` (${pickupLabel})` : '');
     lines.push(`${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}${typeTag} — $${money(order.total)} — ${statusIcon}`);
     if (order.status === 'paid') paidTotal += Number(order.total) || 0;
   });
@@ -292,6 +300,8 @@ export function formatGroupMessage(order) {
 
   const lines = [];
   lines.push(`🧾 <b>New order — ${esc(order.orderCode || '')}</b>`);
+  const pickupLabel = pickupSlotLabel(order);
+  if (pickupLabel) lines.push(`🕐 Pickup: <b>${pickupLabel}</b>`);
   lines.push('');
   lines.push(...itemLines(order));
   lines.push('');
@@ -364,6 +374,8 @@ export function formatReceiptMessage(order, stamps, freeCups, stampsNeeded) {
   lines.push(`✅ <b>Order confirmed!</b>`);
   lines.push(`Inv. ID: <b>${esc(order.orderCode || '')}</b>`);
   lines.push(`Order Time: ${esc(formatTimestamp(order.timestamp))}`);
+  const pickupLabel = pickupSlotLabel(order);
+  if (pickupLabel) lines.push(`🕐 Pickup: <b>${pickupLabel}</b>`);
   lines.push('');
   lines.push(...itemLines(order));
   lines.push('');
