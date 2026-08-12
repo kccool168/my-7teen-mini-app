@@ -1,6 +1,6 @@
 // Vercel serverless function: GET /api/order-reminder
 //
-// Runs once a day via Vercel Cron at 5:30 PM Cambodia time (10:30 UTC).
+// Runs once a day via Vercel Cron at 8:00 PM Cambodia time (13:00 UTC).
 // DMs every known customer who hasn't placed a regular order yet today
 // since 1:00 PM Cambodia time -- a friendly nudge in case they missed
 // ordering. Customers with a currently active paid subscription are always
