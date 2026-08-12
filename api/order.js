@@ -23,7 +23,7 @@
 //     subscription is paid). The order is stored in Redis (14-day TTL) so
 //     those button taps can look it up and edit both messages.
 import getClient from './_redis.js';
-import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDates, clampSubStartDate, todayInPhnomPenh } from './_format.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDates, clampSubStartDate, todayInPhnomPenh, nowTimePhnomPenh } from './_format.js';
 import { pushOrderToSheet } from './_sheets.js';
 
 const STAMPS_NEEDED = 6;
@@ -80,6 +80,13 @@ export default async function handler(req, res) {
   // orders. No cutoff time; the customer freely picks either slot.
   if (!isSubscription && order.pickupSlot !== 'morning' && order.pickupSlot !== 'afternoon') {
       return res.status(400).json({ ok: false, error: 'Order must include a valid pickup slot (morning or afternoon)' });
+  }
+  
+  // Regular orders are paused 7:00-7:59 AM Cambodia time while that
+  // morning's cups are out for delivery — mirrors the client-side Pay
+  // button being disabled during the same window.
+  if (!isSubscription && nowTimePhnomPenh().hour === 7) {
+    return res.status(423).json({ ok: false, error: 'Orders are paused 7:00-8:00 AM while delivery is on the way. Please try again after 8:00 AM.' });
   }
   
   // Customer's optional note, capped to 50 chars regardless of what the
