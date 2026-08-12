@@ -146,6 +146,17 @@ export function todayInPhnomPenh() {
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
 
+// Current hour/minute (0-23, 0-59) in Cambodia local time — used for
+// time-of-day cutoffs like the 7:00 AM /skip deadline and the 7:00-8:00 AM
+// delivery-run window during which new orders are paused.
+export function nowTimePhnomPenh() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Phnom_Penh', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const get = (type) => (parts.find((p) => p.type === type) || {}).value || '0';
+  return { hour: parseInt(get('hour'), 10), minute: parseInt(get('minute'), 10) };
+}
+
 // Human-readable label for a regular order's pickup slot ('morning' /
 // 'afternoon'), or '' if missing/unrecognized (e.g. older orders placed
 // before this field existed, or subscriptions, which don't use it).
@@ -161,7 +172,7 @@ function pickupSlotLabel(order) {
 export function formatDailySummaryMessage(orders, dateStr) {
   const lines = [];
   lines.push(`📋 <b>Daily Order Summary — ${esc(formatCalendarDate(dateStr))}</b>`);
-  lines.push(`🕐 1:30 PM – 6:29 AM next day (Cambodia Time)`);
+  lines.push(`🕐 1:30 PM – 5:59 AM next day (Cambodia Time)`);
   lines.push('');
 
   if (!orders.length) {
