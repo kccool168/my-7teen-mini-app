@@ -93,7 +93,7 @@ export default async function handler(req, res) {
               return res.status(500).json({ ok: false, error: 'Scan failed' });
       }
 
-      const REMINDER_TEXT = "Hey! Just a friendly reminder from 7Teen Cafe -- looks like you haven't ordered yet today. Don't miss out on your coffee. Order now before we close!";
+        const REMINDER_TEXT = "Hey MoyMoy! Just a friendly reminder from 7Teen Cafe -- looks like you haven't ordered yet for tmr. Don't miss out on your coffee. Order Now!";
 
       let reminded = 0;
       let skipped = 0;
