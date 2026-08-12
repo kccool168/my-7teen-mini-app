@@ -312,7 +312,7 @@ export function formatGroupMessage(order) {
   const lines = [];
   lines.push(`🧾 <b>New order — ${esc(order.orderCode || '')}</b>`);
   const pickupLabel = pickupSlotLabel(order);
-  if (pickupLabel) lines.push(`🕐 Pickup: <b>${pickupLabel}</b>`);
+  if (pickupLabel) lines.push(`🕐 Deliver by: <b>${pickupLabel}</b>`);
   lines.push('');
   lines.push(...itemLines(order));
   lines.push('');
@@ -386,7 +386,7 @@ export function formatReceiptMessage(order, stamps, freeCups, stampsNeeded) {
   lines.push(`Inv. ID: <b>${esc(order.orderCode || '')}</b>`);
   lines.push(`Order Time: ${esc(formatTimestamp(order.timestamp))}`);
   const pickupLabel = pickupSlotLabel(order);
-  if (pickupLabel) lines.push(`🕐 Pickup: <b>${pickupLabel}</b>`);
+  if (pickupLabel) lines.push(`🕐 Deliver by: <b>${pickupLabel}</b>`);
   lines.push('');
   lines.push(...itemLines(order));
   lines.push('');
