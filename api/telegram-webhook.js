@@ -321,9 +321,20 @@ async function applySkip(BOT_TOKEN, orderCode, order, dateToSkip) {
   // Keep the Google Sheet order log's "Sub Valid Until" column current
   // too (best-effort — never blocks the reply if the sheet sync doesn't
   // pick up the extra field).
-  await pushStatusToSheet(orderCode, order.status, order.confirmedByName, { subValidUntil: order.subValidUntil });
+    await pushStatusToSheet(orderCode, order.status, order.confirmedByName, { subValidUntil: order.subValidUntil });
 
-    return { ok: true, message: `Skipped ${formatCalendarDate(dateToSkip)}. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}: ${dates.map(formatCalendarDateShort).join(', ')}.` };
+      // Only list days that are genuinely still ahead: drop anything already
+      // redeemed, and drop today once the 7:00 AM prep cutoff has passed (it's
+      // no longer something the customer is still waiting on).
+      const today = todayInPhnomPenh();
+      const todayIsDone = nowTimePhnomPenh().hour >= 7;
+      const upcoming = dates.filter(function (d) {
+              if (redeemed.indexOf(d) !== -1) return false;
+              if (d === today && todayIsDone) return false;
+              return true;
+      });
+
+      return { ok: true, message: `Skipped ${formatCalendarDate(dateToSkip)}. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}: ${upcoming.map(formatCalendarDateShort).join(', ')}.` };
 }
 
 async function handleMessage(message, BOT_TOKEN) {
