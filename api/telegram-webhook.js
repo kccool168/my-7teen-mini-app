@@ -230,13 +230,21 @@ async function findActiveSubscriptionForUser(client, userId) {
 // skipped, from today onward — these are the only days it makes sense to
 // offer skipping.
 function eligibleSkipDates(order) {
-    const today = todayInPhnomPenh();
-    const dates = Array.isArray(order.subDates) ? order.subDates : [];
-    const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates : [];
-    const skipped = Array.isArray(order.subSkippedDates) ? order.subSkippedDates : [];
-    return dates
-      .filter(function (d) { return d >= today && redeemed.indexOf(d) === -1 && skipped.indexOf(d) === -1; })
-      .sort();
+      const today = todayInPhnomPenh();
+      // Today can only be skipped before 7:00 AM (prep starts after that) — once
+      // that window has passed, don't offer it as an option at all, since tapping
+      // it could only ever end in a rejection.
+      const canSkipToday = nowTimePhnomPenh().hour < 7;
+      const dates = Array.isArray(order.subDates) ? order.subDates : [];
+      const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates : [];
+      const skipped = Array.isArray(order.subSkippedDates) ? order.subSkippedDates : [];
+      return dates
+        .filter(function (d) {
+                  if (d < today) return false;
+                  if (d === today && !canSkipToday) return false;
+                  return redeemed.indexOf(d) === -1 && skipped.indexOf(d) === -1;
+        })
+        .sort();
 }
 
 function skipDateKeyboard(orderCode, dates, today) {
