@@ -16,7 +16,7 @@
 // Redis and edits both the staff group message and the customer's own
 // receipt message in place, so both stay in sync with the real status.
 import getClient from './_redis.js';
-import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh, nowTimePhnomPenh, computeSubDates, formatCalendarDate } from './_format.js';
+import { formatGroupMessage, formatReceiptMessage, groupKeyboard, todayInPhnomPenh, nowTimePhnomPenh, computeSubDates, formatCalendarDate, formatCalendarDateShort } from './_format.js';
 import { pushStatusToSheet } from './_sheets.js';
 
 const MONTHS = {
@@ -315,7 +315,7 @@ async function applySkip(BOT_TOKEN, orderCode, order, dateToSkip) {
   // pick up the extra field).
   await pushStatusToSheet(orderCode, order.status, order.confirmedByName, { subValidUntil: order.subValidUntil });
 
-  return { ok: true, message: `Skipped ${formatCalendarDate(dateToSkip)}. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}.` };
+    return { ok: true, message: `Skipped ${formatCalendarDate(dateToSkip)}. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}: ${dates.map(formatCalendarDateShort).join(', ')}.` };
 }
 
 async function handleMessage(message, BOT_TOKEN) {
