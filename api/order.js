@@ -24,7 +24,7 @@
 //     those button taps can look it up and edit both messages.
 import getClient from './_redis.js';
 import { formatGroupMessage, formatReceiptMessage, groupKeyboard, computeSubDates, clampSubStartDate, todayInPhnomPenh, nowTimePhnomPenh } from './_format.js';
-import { pushOrderToSheet } from './_sheets.js';
+import { pushOrderToSheet, pushLoyaltyToSheet } from './_sheets.js';
 
 const STAMPS_NEEDED = 6;
 const MIN_STAMP_PRICE = 1.25; // cups priced below this don't earn a stamp
@@ -193,6 +193,7 @@ export default async function handler(req, res) {
         const priorMax = freeCupApplied ? 0 : (priorLastCupPrice || 0);
         const newMaxPrice = Math.max(priorMax, unitPrice);
         await client.set(lastPriceKey, newMaxPrice.toFixed(2));
+        lastCupPrice = Math.round(newMaxPrice * 100) / 100;
       } catch (err) {
         console.error('Stamp persistence failed for subscription', err);
       }
@@ -347,6 +348,7 @@ export default async function handler(req, res) {
         // Log the order to the Google Sheet order log (best-effort — never
         // blocks or fails the order itself).
         await pushOrderToSheet(orderRecord);
+        await pushLoyaltyToSheet(order.customer, stamps, freeCups, lastCupPrice);
       } catch (err) {
         console.error('Order status persistence failed (buttons will not work for this order)', err);
       }
