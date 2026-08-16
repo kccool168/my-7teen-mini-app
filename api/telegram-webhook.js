@@ -359,6 +359,13 @@ function buildSubscriptionStatusMessage(order) {
 
 async function handleMessage(message, BOT_TOKEN) {
     const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
+    if (/^\/start\b/i.test(skipCommandText) && message.from && message.chat) {
+            const welcomeText = "Welcome to 7Teen Cafe! ☕\n\nOrder your favorite coffee, tea, and more right from our Mini App, or subscribe for daily delivery and save.\n\nUseful commands:\n/subscription - check your subscription status\n/skip - skip a subscription day\n\nTap below to start ordering!";
+            const startKeyboard = { inline_keyboard: [[{ text: 'Order Now', web_app: { url: 'https://my-7teen-mini-app.vercel.app' } }]] };
+            await sendPlainMessage(BOT_TOKEN, message.chat.id, welcomeText, startKeyboard);
+            return;
+    }
+    
     if (/^\/subscription\b/i.test(skipCommandText) && message.from && message.chat) {
             // Quick status check -- shows the subscriber their current schedule.
             let reply = null;
