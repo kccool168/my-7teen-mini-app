@@ -35,3 +35,24 @@ export async function pushStatusToSheet(orderCode, status, confirmedBy, extra) {
     console.error('Sheet sync (updateStatus) failed', err);
   }
 }
+
+export async function pushLoyaltyToSheet(customer, stamps, freeCups, lastCupPrice) {
+    const url = process.env.GOOGLE_SHEETS_WEBHOOK_URL;
+    if (!url || !customer || customer.id == null) return;
+    try {
+          await fetch(url, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                            action: 'upsertLoyalty',
+                            customerId: String(customer.id),
+                            customerName: [customer.firstName, customer.lastName].filter(Boolean).join(' '),
+                            username: customer.username ? '@' + customer.username : '',
+                            stamps, freeCups,
+                            lastCupPrice: lastCupPrice != null ? lastCupPrice : null,
+                  }),
+          });
+    } catch (err) {
+          console.error('Sheet sync (upsertLoyalty) failed', err);
+    }
+}
