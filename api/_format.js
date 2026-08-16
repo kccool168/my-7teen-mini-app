@@ -193,8 +193,10 @@ export function formatDailySummaryMessage(orders, dateStr) {
     const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
     const statusIcon = order.status === 'paid' ? '✅ Paid' : order.status === 'unpaid' ? '❌ Not received' : '⏳ Pending';
     const pickupLabel = pickupSlotLabel(order);
-    const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d)` : (pickupLabel ? ` (${pickupLabel})` : '');
-    lines.push(`${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}${typeTag} — $${money(order.total)} — ${statusIcon}`);
+    const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d, starts ${esc(formatCalendarDate(order.subStartDate))})` : (pickupLabel ? ` (${pickupLabel})` : '');
+        let line = `${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}${typeTag} — $${money(order.total)} — ${statusIcon}`;
+        if (order.remark) line += `\n   📝 ${esc(order.remark)}`;
+        lines.push(line);
     if (order.status === 'paid') paidTotal += Number(order.total) || 0;
   });
 
