@@ -336,9 +336,44 @@ async function applySkip(BOT_TOKEN, orderCode, order, dateToSkip) {
 
       return { ok: true, message: `Skipped ${formatCalendarDate(dateToSkip)}. Your subscription now runs through ${formatCalendarDate(order.subValidUntil)}: ${upcoming.map(formatCalendarDateShort).join(', ')}.` };
 }
+// ---- "/subscription" -- quick status check showing a subscriber their
+//      current schedule: valid-until date, upcoming days, and which ones
+//      are already redeemed. ----
+function buildSubscriptionStatusMessage(order) {
+      const dates = Array.isArray(order.subDates) ? order.subDates.slice().sort() : [];
+      const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates : [];
+      const skipped = Array.isArray(order.subSkippedDates) ? order.subSkippedDates : [];
+
+      const lines = dates.map(function (d) {
+              const tag = redeemed.indexOf(d) !== -1 ? ' - redeemed' : '';
+              return `- ${formatCalendarDateShort(d)}${tag}`;
+      });
+
+      let msg = `Your Subscription\nValid until: ${formatCalendarDate(order.subValidUntil)}\n\n${lines.join('\n')}`;
+      if (skipped.length) {
+              msg += `\n\nSkipped: ${skipped.map(formatCalendarDateShort).join(', ')}`;
+      }
+      return msg;
+}
+
 
 async function handleMessage(message, BOT_TOKEN) {
     const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
+    if (/^\/subscription\b/i.test(skipCommandText) && message.from && message.chat) {
+            // Quick status check -- shows the subscriber their current schedule.
+            let reply = null;
+            try {
+                      const client = await getClient();
+                      const found = await findActiveSubscriptionForUser(client, String(message.from.id));
+                      reply = found ? buildSubscriptionStatusMessage(found.order) : "You don't have an active subscription right now.";
+            } catch (err) {
+                      console.error('/subscription command failed', err);
+                      reply = 'Something went wrong looking up your subscription -- please try again, or let staff know if it keeps happening.';
+            }
+            await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
+            return;
+    }
+    
     if (/^\/skip\b/i.test(skipCommandText) && message.from && message.chat) {
           // Show the subscriber every upcoming day they can still skip, as
       // buttons, and let them pick one. Whether a given day can actually be
