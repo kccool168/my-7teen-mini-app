@@ -349,7 +349,10 @@ function buildSubscriptionStatusMessage(order) {
               return `- ${formatCalendarDateShort(d)}${tag}`;
       });
 
-      let msg = `Your Subscription\nValid until: ${formatCalendarDate(order.subValidUntil)}\n\n${lines.join('\n')}`;
+      const item = order.items && order.items[0];
+        const drinkBits = item ? [item.sugar ? (item.sugar + ' sugar') : null, (item.addons && item.addons.length ? item.addons.join(', ') : null)].filter(Boolean) : [];
+        const drinkLine = item ? `Drink: ${item.name}${drinkBits.length ? ' (' + drinkBits.join(', ') + ')' : ''} - $${Number(item.unitPrice || 0).toFixed(2)}/day\n` : '';
+            let msg = `Your Subscription\n${drinkLine}Valid until: ${formatCalendarDate(order.subValidUntil)}\n\n${lines.join('\n')}`;
       if (skipped.length) {
               msg += `\n\nSkipped: ${skipped.map(formatCalendarDateShort).join(', ')}`;
       }
