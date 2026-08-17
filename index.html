@@ -470,12 +470,17 @@
     return m.price + extra;
   }
 
-  // Loyalty free cups auto-apply to a new subscription as a bonus day on top
-  // of the days being paid for (e.g. eligible for 1 free cup + subscribes
-  // for 4 days = 5 total redeemable days). Only 1 free cup is ever applied
-  // per subscription — mirrors the server-side logic in api/order.js, which
-  // is the authoritative source once the order is actually placed.
-  function subBonusDays(){ return state.freeCups > 0 ? 1 : 0; }
+  // If the customer has a free cup banked, it's redeemed as the LAST day of
+  // this subscription (the subscription stays at the exact day count they
+  // selected — no extra day added). Mirrors the server-side logic in
+  // api/order.js, which is the authoritative source once the order is
+  // actually placed.
+  function subWillRedeemFreeCup(){ return state.freeCups > 0; }
+  function subFreeCupDiscount(unit){
+    if (!subWillRedeemFreeCup()) return 0;
+    var cap = (typeof state.lastCupPrice === 'number' && !isNaN(state.lastCupPrice)) ? state.lastCupPrice : unit;
+    return Math.min(unit, cap, 1.75);
+  }
 
   function computeTotal(){
     var cart = state.cart, subtotal = 0;
@@ -636,14 +641,15 @@
     var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
     var unit = unitPrice(m, state.subSugar, state.subAddons);
     var days = state.subDaysOfWeek.length;
-    var bonus = subBonusDays();
-    var totalDays = days + bonus;
-    var validUntil = computeSubValidUntilForDays(state.subStartDate, totalDays, state.subDaysOfWeek);
+    var willRedeem = subWillRedeemFreeCup();
+    var discount = subFreeCupDiscount(unit);
+    var validUntil = computeSubValidUntilForDays(state.subStartDate, days, state.subDaysOfWeek);
+    var subtotal = Math.round(unit * days * 100) / 100;
     setState({
       pendingSubscription: {
         item: m, sugar: state.subSugar, addons: state.subAddons, unitPrice: unit,
-        startDate: state.subStartDate, days: days, bonusDays: bonus, totalDays: totalDays, validUntil: validUntil,
-        total: Math.round(unit * days * 100) / 100, remark: state.subRemark, daysOfWeek: state.subDaysOfWeek,
+        startDate: state.subStartDate, days: days, willRedeemFreeCup: willRedeem, discount: discount, validUntil: validUntil,
+        total: Math.max(0, Math.round((subtotal - discount) * 100) / 100), remark: state.subRemark, daysOfWeek: state.subDaysOfWeek,
       },
       screen: 'pay',
     });
@@ -793,7 +799,7 @@
       paymentStatus: 'pending', orderTime: timestamp,
       confirmSubInfo: {
         validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days,
-        bonusDays: sub.bonusDays || 0, startDate: sub.startDate,
+        freeDate: null, startDate: sub.startDate,
       },
     });
 
@@ -816,7 +822,7 @@
         if (data.subValidUntil && s.confirmSubInfo){
           patch.confirmSubInfo = Object.assign({}, s.confirmSubInfo, {
             validUntil: data.subValidUntil,
-            bonusDays: typeof data.subBonusDays === 'number' ? data.subBonusDays : s.confirmSubInfo.bonusDays,
+            freeDate: typeof data.subFreeDate !== 'undefined' ? data.subFreeDate : s.confirmSubInfo.freeDate,
           });
         }
         return patch;
@@ -985,15 +991,16 @@
     var unit = unitPrice(m, state.subSugar, state.subAddons);
     var days = state.subDaysOfWeek.length;
     var subEndDate = nthMatchingDate(state.subStartDate, state.subDaysOfWeek, days);
-    var bonus = subBonusDays();
-    var totalDays = days + bonus;
-    var total = Math.round(unit * days * 100) / 100;
-    var validUntil = computeSubValidUntilForDays(state.subStartDate, totalDays, state.subDaysOfWeek);
+    var willRedeem = subWillRedeemFreeCup();
+    var discount = subFreeCupDiscount(unit);
+    var subtotal = Math.round(unit * days * 100) / 100;
+    var total = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
+    var validUntil = computeSubValidUntilForDays(state.subStartDate, days, state.subDaysOfWeek);
     var maxStartDate = addMonthToDateStr(todayDateStr());
     var dayHint = 'Closed on Sundays · number of days matches how many weekdays you selected';
 
-    var bonusRow = bonus > 0
-      ? '<div class="row"><span>🎁 Free cup bonus</span><span>+' + bonus + ' day' + (bonus === 1 ? '' : 's') + '</span></div>'
+    var bonusRow = willRedeem
+      ? '<div class="row"><span>🎁 Free cup reward (last day free)</span><span>−$' + money(discount) + '</span></div>'
       : '';
 
     var remarkHtml = '' +
@@ -1095,9 +1102,7 @@
   function renderPay(){
     var sub = state.pendingSubscription;
     var totalVal = sub ? sub.total : computeTotal().total;
-    var subDaysLabel = sub && sub.bonusDays > 0
-      ? (sub.days + ' day' + (sub.days === 1 ? '' : 's') + ' + ' + sub.bonusDays + ' free')
-      : (sub ? (sub.days + ' day' + (sub.days === 1 ? '' : 's')) : '');
+    var subDaysLabel = sub ? (sub.days + ' day' + (sub.days === 1 ? '' : 's') + (sub.willRedeemFreeCup ? ' (last day free)' : '')) : '';
     var subSummary = sub ? (
       '<div class="pay-sub-summary">' +
         esc(sub.item.name) + ' × ' + subDaysLabel + '<br>' +
@@ -1143,7 +1148,7 @@
 
     var subHtml = isSub
       ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b>' +
-        (state.confirmSubInfo.bonusDays > 0 ? '<br><span style="opacity:.85">🎁 Includes ' + state.confirmSubInfo.bonusDays + ' free day from your loyalty reward</span>' : '') +
+        (state.confirmSubInfo.freeDate ? '<br><span style="opacity:.85">🎁 ' + esc(formatCalendarDate(state.confirmSubInfo.freeDate)) + ' is free — loyalty reward applied!</span>' : '') +
         '</div>'
       : '';
 
