@@ -38,11 +38,11 @@ export default async function handler(req, res) {
       // many people were reminded, without digging into Vercel logs.
       const GROUP_CHAT_ID = process.env.GROUP_CHAT_ID;
 
-        // Temporarily paused for 14-15 Aug 2026 -- remove this block once the
-        // pause is no longer needed.
-        const PAUSED_DATES = ['2026-08-14', '2026-08-15'];
-        if (PAUSED_DATES.includes(todayInPhnomPenh())) {
-                  console.log(`Order reminder paused for ${todayInPhnomPenh()} -- skipping run.`);
+        // Paused indefinitely starting 20 Aug 2026 at the shop owner's request --
+        // set REMINDERS_PAUSED back to false when reminders should resume.
+        const REMINDERS_PAUSED = true;
+        if (REMINDERS_PAUSED) {
+                  console.log(`Order reminder paused (indefinite) for ${todayInPhnomPenh()} -- skipping run.`);
                   return res.status(200).json({ ok: true, paused: true, date: todayInPhnomPenh() });
         }
       
