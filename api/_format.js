@@ -138,40 +138,62 @@ function pickupSlotLabel(order) {
     return order.pickupSlot === 'morning' ? 'Morning' : order.pickupSlot === 'afternoon' ? 'Afternoon' : '';
 }
 
-export function formatDailySummaryMessage(orders, dateStr) {
-    const lines = [];
-    lines.push(`📋 <b>Daily Order Summary — ${esc(formatCalendarDate(dateStr))}</b>`);
-    lines.push(`🕐 1:30 PM – 5:59 AM next day (Cambodia Time)`);
-    lines.push('');
+function summarizeItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const details = [];
+    if (item.sugar) details.push(`${esc(item.sugar)} sugar`);
+    if (item.addons && item.addons.length) details.push(item.addons.map(esc).join(', '));
+    const detailStr = details.length ? ` (${details.join(', ')})` : '';
+    return `${item.qty}x ${esc(item.name)}${detailStr}`;
+  }).join(', ');
+}
+
+export function formatDailySummaryMessage(orders, dateStr, dueTodaySubs, todayStr) {
+  const lines = [];
+  lines.push(`📋 <b>Daily Order Summary — ${esc(formatCalendarDate(dateStr))}</b>`);
+  lines.push(`🕐 1:30 PM – 5:59 AM next day (Cambodia Time)`);
+  lines.push('');
 
   if (!orders.length) {
-        lines.push('No orders were placed in this window.');
-        return lines.join('\n');
-  }
-
-  let paidTotal = 0;
+    lines.push('No new orders were placed in this window.');
+  } else {
+    let paidTotal = 0;
     orders.forEach((order, i) => {
-          const isSub = order.orderType === 'subscription';
-          const itemsSummary = Array.isArray(order.items)
-            ? order.items.map((item) => {
-                      const addonStr = (item.addons && item.addons.length) ? ` (${item.addons.map(esc).join(', ')})` : '';
-                      return `${item.qty}x ${esc(item.name)}${addonStr}`;
-            }).join(', ')
-                  : '';
-          const custObj = order.customer || {};
-          const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
-          const statusIcon = order.status === 'paid' ? '✅ Paid' : order.status === 'unpaid' ? '❌ Not received' : '⏳ Pending';
-          const pickupLabel = pickupSlotLabel(order);
-          const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d, starts ${esc(formatCalendarDate(order.subStartDate))})` : (pickupLabel ? ` (${pickupLabel})` : '');
-              let line = `${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}${typeTag} — $${money(order.total)} — ${statusIcon}`;
-              if (order.remark) line += `\n   📝 ${esc(order.remark)}`;
-              lines.push(line);
-          if (order.status === 'paid') paidTotal += Number(order.total) || 0;
+      const isSub = order.orderType === 'subscription';
+      const itemsSummary = summarizeItems(order.items);
+      const custObj = order.customer || {};
+      const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
+      const statusIcon = order.status === 'paid' ? '✅ Paid' : order.status === 'unpaid' ? '❌ Not received' : '⏳ Pending';
+      const pickupLabel = pickupSlotLabel(order);
+      const typeTag = isSub ? ` (Subscription, ${order.subDays || ''}d, starts ${esc(formatCalendarDate(order.subStartDate))})` : (pickupLabel ? ` (${pickupLabel})` : '');
+      let line = `${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}${typeTag} — $${money(order.total)} — ${statusIcon}`;
+      if (order.remark) line += `\n   📝 ${esc(order.remark)}`;
+      lines.push(line);
+      if (order.status === 'paid') paidTotal += Number(order.total) || 0;
     });
-
-  lines.push('');
+    lines.push('');
     lines.push(`Total orders: ${orders.length}`);
     lines.push(`Total revenue (paid): $${money(paidTotal)}`);
+  }
+
+  // Ongoing subscribers whose schedule includes today, regardless of when
+  // they originally signed up -- the overnight order-timestamp window above
+  // only ever catches a subscription once, on the day it was created, so
+  // without this every later day of an active subscription would silently
+  // disappear from staff's morning prep list.
+  lines.push('');
+  lines.push(`☕ <b>Subscriptions due ${esc(formatCalendarDate(todayStr))}</b>`);
+  if (!dueTodaySubs || !dueTodaySubs.length) {
+    lines.push('None.');
+  } else {
+    dueTodaySubs.forEach((order, i) => {
+      const item = order.items && order.items[0];
+      const itemsSummary = item ? summarizeItems([Object.assign({}, item, { qty: 1 })]) : '';
+      const custObj = order.customer || {};
+      const name = [custObj.firstName, custObj.lastName].filter(Boolean).join(' ') || 'Customer';
+      lines.push(`${i + 1}. <b>${esc(order.orderCode || '')}</b> — ${esc(name)} — ${itemsSummary}`);
+    });
+  }
 
   return lines.join('\n');
 }
