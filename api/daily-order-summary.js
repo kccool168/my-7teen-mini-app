@@ -78,7 +78,29 @@ export default async function handler(req, res) {
 
   matched.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-  const message = formatDailySummaryMessage(matched, targetDate);
+  // Ongoing subscribers whose schedule includes today, regardless of when
+  // they originally subscribed -- the timestamp-window scan above only ever
+  // catches a subscription on the day it was first created.
+  const today = todayInPhnomPenh();
+  const dueTodaySubs = [];
+  try {
+    const subCodes = await client.sMembers('active_subscriptions');
+    for (const code of subCodes) {
+      const raw = await client.get(`order:${code}`);
+      if (!raw) continue;
+      let order;
+      try { order = JSON.parse(raw); } catch (e) { continue; }
+      const dates = Array.isArray(order.subDates) ? order.subDates : [];
+      const redeemed = Array.isArray(order.subRedeemedDates) ? order.subRedeemedDates : [];
+      if (dates.indexOf(today) !== -1 && redeemed.indexOf(today) === -1) {
+        dueTodaySubs.push(order);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to resolve subscriptions due today for daily summary', err);
+  }
+
+  const message = formatDailySummaryMessage(matched, targetDate, dueTodaySubs, today);
   try {
     const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
