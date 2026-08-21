@@ -31,6 +31,12 @@ const MATCH_WINDOW_MS = 20 * 60 * 1000;
 // (covers small exchange-rate movement day to day).
 const MATCH_TOLERANCE_RATIO = 0.03;
 
+// Owner-only commands (/subscription_report, /notify_reminder) only work
+// when sent from this Telegram user id -- Ratana's personal account -- so a
+// customer can never trigger a mass notification or see the full
+// subscription list just by DMing the bot.
+const OWNER_ID = '403684063';
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
@@ -360,6 +366,92 @@ function buildSubscriptionStatusMessage(order) {
 }
 
 
+// ---- "/notify_reminder" (owner only) -- manually fires the same
+//      reminder the paused daily cron would send, so the owner can nudge
+//      everyone on demand even while the automatic run stays paused. ----
+async function sendReminderToAllUsers(BOT_TOKEN) {
+  const client = await getClient();
+  const REMINDER_TEXT = "Hey MoyMoy! Just a friendly reminder from 7Teen Cafe -- looks like you haven't ordered yet for tmr. Don't miss out on your coffee. Order Now!";
+
+  const activeSubUsers = new Set();
+  try {
+    const subCodes = await client.sMembers('active_subscriptions');
+    for (const code of subCodes) {
+      const raw = await client.get(`order:${code}`);
+      if (!raw) continue;
+      let order;
+      try { order = JSON.parse(raw); } catch (e) { continue; }
+      const userId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
+      if (userId) activeSubUsers.add(userId);
+    }
+  } catch (err) {
+    console.error('Failed to resolve active subscribers for manual reminder', err);
+  }
+
+  const today = todayInPhnomPenh();
+  const windowStart = new Date(`${today}T06:00:00.000Z`).getTime();
+  const now = Date.now();
+
+  const knownUsers = new Set();
+  const orderedSince1pm = new Set();
+
+  for await (const key of client.scanIterator({ MATCH: 'order:*', COUNT: 100 })) {
+    const raw = await client.get(key);
+    if (!raw) continue;
+    let order;
+    try { order = JSON.parse(raw); } catch (e) { continue; }
+    const userId = order.customer && order.customer.id != null ? String(order.customer.id) : null;
+    if (!userId) continue;
+    knownUsers.add(userId);
+    if (order.orderType === 'subscription') continue;
+    const ts = order.timestamp ? new Date(order.timestamp).getTime() : NaN;
+    if (!isNaN(ts) && ts >= windowStart && ts <= now) {
+      orderedSince1pm.add(userId);
+    }
+  }
+
+  let reminded = 0;
+  let skipped = 0;
+  for (const userId of knownUsers) {
+    if (activeSubUsers.has(userId) || orderedSince1pm.has(userId)) { skipped++; continue; }
+    try {
+      const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: userId, text: REMINDER_TEXT }),
+      });
+      const tgData = await tgRes.json();
+      if (tgRes.ok && tgData.ok) reminded++;
+      else console.error(`Manual reminder failed for user ${userId}`, tgData);
+    } catch (err) {
+      console.error(`Manual reminder error for user ${userId}`, err);
+    }
+  }
+
+  return { knownUsers: knownUsers.size, activeSubscribers: activeSubUsers.size, orderedSince1pm: orderedSince1pm.size, reminded, skipped };
+}
+
+// ---- "/subscription_report" (owner only) -- live snapshot of every
+//      active subscription, so the owner doesn't have to open the sheet or
+//      ask staff. ----
+function buildSubscriptionReportMessage(subs) {
+  if (!subs.length) return 'No active subscriptions right now.';
+  const today = todayInPhnomPenh();
+  const lines = [`Live Subscription Report (${subs.length} active)`, ''];
+  subs.forEach((o, i) => {
+    const c = o.customer || {};
+    const name = [c.firstName, c.lastName].filter(Boolean).join(' ') || 'Customer';
+    const handle = c.username ? ` (@${c.username})` : '';
+    const item = o.items && o.items[0];
+    const drink = item ? `${item.name}${item.sugar ? ' (' + item.sugar + ' sugar)' : ''}` : '';
+    const dates = Array.isArray(o.subDates) ? o.subDates : [];
+    const redeemed = Array.isArray(o.subRedeemedDates) ? o.subRedeemedDates : [];
+    const dueToday = dates.indexOf(today) !== -1 && redeemed.indexOf(today) === -1;
+    lines.push(`${i + 1}. ${name}${handle} -- ${drink}`);
+    lines.push(`   Valid until: ${formatCalendarDate(o.subValidUntil)} | Redeemed: ${redeemed.length}/${dates.length}${dueToday ? ' | Due today' : ''}`);
+  });
+  return lines.join('\n');
+}
+
 async function handleMessage(message, BOT_TOKEN) {
     const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
     if (/^\/start\b/i.test(skipCommandText) && message.from && message.chat) {
@@ -410,6 +502,45 @@ async function handleMessage(message, BOT_TOKEN) {
           }
           await sendPlainMessage(BOT_TOKEN, message.chat.id, reply, keyboard);
           return;
+    }
+
+      if (/^\/subscription_report\b/i.test(skipCommandText) && message.from && message.chat) {
+      if (String(message.from.id) !== OWNER_ID) return; // silently ignore non-owner
+      let reply = null;
+      try {
+        const client = await getClient();
+        const subCodes = await client.sMembers('active_subscriptions');
+        const subs = [];
+        for (const code of subCodes) {
+          const raw = await client.get(`order:${code}`);
+          if (!raw) continue;
+          let o;
+          try { o = JSON.parse(raw); } catch (e) { continue; }
+          subs.push(o);
+        }
+        reply = buildSubscriptionReportMessage(subs);
+      } catch (err) {
+        console.error('/subscription_report command failed', err);
+        reply = 'Something went wrong pulling the subscription report -- please try again.';
+      }
+      await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
+      return;
+    }
+
+    if (/^\/notify_reminder\b/i.test(skipCommandText) && message.from && message.chat) {
+      if (String(message.from.id) !== OWNER_ID) return; // silently ignore non-owner
+      await sendPlainMessage(BOT_TOKEN, message.chat.id, 'Sending reminder to all eligible customers now...');
+      let result;
+      try {
+        result = await sendReminderToAllUsers(BOT_TOKEN);
+      } catch (err) {
+        console.error('/notify_reminder command failed', err);
+        await sendPlainMessage(BOT_TOKEN, message.chat.id, 'Something went wrong sending reminders -- check Vercel logs.');
+        return;
+      }
+      const summary = `Reminder sent.\nKnown customers: ${result.knownUsers}\nActive subscribers (skipped): ${result.activeSubscribers}\nAlready ordered since 1PM (skipped): ${result.orderedSince1pm}\nReminded: ${result.reminded}`;
+      await sendPlainMessage(BOT_TOKEN, message.chat.id, summary);
+      return;
     }
 
   const BANK_CHAT_ID = process.env.BANK_NOTIFY_CHAT_ID;
