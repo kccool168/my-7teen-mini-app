@@ -518,7 +518,13 @@ async function handleMessage(message, BOT_TOKEN) {
           try { o = JSON.parse(raw); } catch (e) { continue; }
           subs.push(o);
         }
-        reply = buildSubscriptionReportMessage(subs);
+        // active_subscriptions is only pruned once/day by the expiry-check
+        // cron, so a subscription that expired since the last run can still
+        // be a member of the set -- filter it out here too so the report
+        // never shows something already expired.
+        const today = todayInPhnomPenh();
+        const activeSubs = subs.filter((o) => !o.subValidUntil || o.subValidUntil >= today);
+        reply = buildSubscriptionReportMessage(activeSubs);
       } catch (err) {
         console.error('/subscription_report command failed', err);
         reply = 'Something went wrong pulling the subscription report -- please try again.';
