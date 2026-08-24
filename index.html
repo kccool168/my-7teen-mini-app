@@ -1237,7 +1237,10 @@
       var sm = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
       var sunit = unitPrice(sm, state.subSugar, state.subAddons);
       var sdays = state.subDaysOfWeek.length;
-      label = 'Subscribe · $' + money(sunit * sdays);
+      var sDiscount = subFreeCupDiscount(sunit);
+      var sSubtotal = Math.round(sunit * sdays * 100) / 100;
+      var sTotal = Math.max(0, Math.round((sSubtotal - sDiscount) * 100) / 100);
+      label = 'Subscribe · $' + money(sTotal);
       action = goSubscriptionPay;
     } else if (state.screen === 'cart'){
       var totals = computeTotal();
