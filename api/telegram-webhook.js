@@ -452,6 +452,21 @@ function buildSubscriptionReportMessage(subs) {
   return lines.join('\n');
 }
 
+// ---- "/loyalty_point" (owner only) -- live snapshot of every
+//      customer's loyalty stamp progress, so the owner doesn't have to
+//      open the sheet or ask staff. ----
+function buildLoyaltyReportMessage(rows) {
+  if (!rows.length) return 'No loyalty stamps recorded yet.';
+  rows.sort((a, b) => b.total - a.total);
+  const lines = [`Loyalty Stamps Report (${rows.length} customers)`, ''];
+  rows.forEach((r, i) => {
+    const handle = r.username ? ` (@${r.username})` : '';
+    const freeCupTag = r.freeCups ? ` | ${r.freeCups} free cup${r.freeCups > 1 ? 's' : ''} available` : '';
+    lines.push(`${i + 1}. ${r.name}${handle} -- ${r.stamps}/6 stamps${freeCupTag}`);
+  });
+  return lines.join('\n');
+}
+
 async function handleMessage(message, BOT_TOKEN) {
     const skipCommandText = message && typeof message.text === 'string' ? message.text.trim() : '';
     if (/^\/start\b/i.test(skipCommandText) && message.from && message.chat) {
@@ -546,6 +561,50 @@ async function handleMessage(message, BOT_TOKEN) {
       }
       const summary = `Reminder sent.\nKnown customers: ${result.knownUsers}\nActive subscribers (skipped): ${result.activeSubscribers}\nAlready ordered since 1PM (skipped): ${result.orderedSince1pm}\nReminded: ${result.reminded}`;
       await sendPlainMessage(BOT_TOKEN, message.chat.id, summary);
+      return;
+    }
+
+    if (/^\/loyalty_point\b/i.test(skipCommandText) && message.from && message.chat) {
+      if (String(message.from.id) !== OWNER_ID) return; // silently ignore non-owner
+      let reply = null;
+      try {
+        const client = await getClient();
+        const userMap = new Map();
+        for await (const key of client.scanIterator({ MATCH: 'order:*', COUNT: 100 })) {
+          const raw = await client.get(key);
+          if (!raw) continue;
+          let order;
+          try { order = JSON.parse(raw); } catch (e) { continue; }
+          const c = order.customer || {};
+          if (c.id == null) continue;
+          const userId = String(c.id);
+          const ts = order.timestamp ? new Date(order.timestamp).getTime() : 0;
+          const existing = userMap.get(userId);
+          if (!existing || ts > existing.ts) {
+            userMap.set(userId, { ts, firstName: c.firstName, lastName: c.lastName, username: c.username });
+          }
+        }
+        const STAMPS_NEEDED = 6;
+        const rows = [];
+        for (const [userId, info] of userMap) {
+          const [totalStr, usedStr] = await Promise.all([
+            client.get(`user:${userId}:total`),
+            client.get(`user:${userId}:used`),
+          ]);
+          const total = parseInt(totalStr || '0', 10) || 0;
+          if (total <= 0) continue;
+          const used = parseInt(usedStr || '0', 10) || 0;
+          const stamps = total % STAMPS_NEEDED;
+          const freeCups = Math.max(0, Math.floor(total / STAMPS_NEEDED) - used);
+          const name = [info.firstName, info.lastName].filter(Boolean).join(' ') || 'Customer';
+          rows.push({ name, username: info.username, stamps, freeCups, total });
+        }
+        reply = buildLoyaltyReportMessage(rows);
+      } catch (err) {
+        console.error('/loyalty_point command failed', err);
+        reply = 'Something went wrong pulling loyalty points -- please try again.';
+      }
+      await sendPlainMessage(BOT_TOKEN, message.chat.id, reply);
       return;
     }
 
