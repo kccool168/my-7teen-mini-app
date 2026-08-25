@@ -907,7 +907,7 @@
     var qty = entry ? entry.qty : 0;
     var thumb = m.photo
       ? '<img src="' + esc(m.photo) + '" alt="">'
-      : '<span class="lbl ph-glyph">☕</span';
+      : '<span class="lbl ph-glyph">☕</span>';
     var ctrl = qty > 0
       ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
       : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
@@ -929,7 +929,7 @@
     var qty = entry ? entry.qty : 0;
     var thumb = m.photo
       ? '<img src="' + esc(m.photo) + '" alt="">'
-      : '<span class="lbl ph-glyph">☕</span';
+      : '<span class="lbl ph-glyph">☕</span>';
     var ctrl = qty > 0
       ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
       : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
@@ -999,7 +999,7 @@
   }function renderItem(){
     var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
     var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
-    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span';
+    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>';
 
     var sugarHtml = isDrink ? (
       '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
@@ -1041,7 +1041,7 @@
   function renderSubscribe(){
     var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
     var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
-    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span';
+    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>';
 
     var sugarHtml = isDrink ? (
       '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
