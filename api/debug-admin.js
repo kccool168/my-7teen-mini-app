@@ -69,10 +69,19 @@ export default async function handler(req, res) {
     const ttl = await client.ttl(key);
     const setOpts = ttl && ttl > 0 ? { EX: ttl } : {};
     await client.set(key, JSON.stringify(order), setOpts);
+    // This order already added a stamp for every cup in it when it was first
+    // created (api/order.js credits stamps at order time, not at payment
+    // time) -- since it's being converted to a free-cup redemption after the
+    // fact, undo that stamp so it doesn't double count, then spend the cup.
+    const cupsInOrder = (order.items || []).reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+    const totalKey = 'user:' + userId + ':total';
     const usedKey = 'user:' + userId + ':used';
+    const newTotal = await client.decrBy(totalKey, cupsInOrder);
     const newUsed = await client.incr(usedKey);
+    const newStamps = ((newTotal % STAMPS_NEEDED) + STAMPS_NEEDED) % STAMPS_NEEDED;
+    const newFreeCups = Math.max(0, Math.floor(newTotal / STAMPS_NEEDED) - newUsed);
     try { await pushStatusToSheet(code2, order.status, order.confirmedByName); } catch (e) {}
-    return res.status(200).json({ ok: true, order, newUsed: newUsed });
+    return res.status(200).json({ ok: true, order, newTotal, newUsed, newStamps, newFreeCups });
   }
 
   return res.status(400).json({ ok: false, error: 'unknown action' });
