@@ -253,7 +253,7 @@
   @media (min-width:480px){
     #app{max-width:430px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.08)}
   }
-</style>
+.sub-cal-card{margin-top:6px;padding:14px;background:var(--card);border-radius:18px;border:1px solid var(--border)} .sub-cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px} .cal-nav-btn{width:30px;height:30px;border-radius:15px;background:var(--chip-bg);color:var(--chip-text);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;cursor:pointer} .cal-nav-btn.disabled{opacity:.35;pointer-events:none} .cal-nav-label{font-weight:800;font-size:14px} .sub-cal-dow{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11px;font-weight:700;color:var(--text-soft2);margin-bottom:4px} .sub-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px} .cal-day{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:700;color:var(--text)} .cal-day.empty{visibility:hidden} .cal-day.off{color:var(--text-soft2);opacity:.35} .cal-day.pick{background:var(--chip-bg);color:var(--chip-text);cursor:pointer} .cal-day.selected{background:var(--accent);color:#fff} .sub-cal-presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap} .cal-preset-chip{padding:8px 12px;border-radius:12px;background:var(--info-bg);color:var(--info-text);font-size:12px;font-weight:700;cursor:pointer} .sub-date-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px} .sub-date-chip{padding:7px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer} .sub-cal-empty{margin-top:10px;font-size:12.5px;color:var(--text-soft2);line-height:1.5} </style>
 </head>
 <body>
 <div id="app">
@@ -371,84 +371,7 @@
   // (e.g. Mon, Wed, Fri, Sat) via a multi-select of weekday chips. Any day
   // not selected gets skipped and the range simply extends further, so the
   // customer still gets every day they paid (or were rewarded) for.
-  var SUB_DAY_OPTS = [
-    { dow: 1, label: 'Mon' }, { dow: 2, label: 'Tue' }, { dow: 3, label: 'Wed' },
-    { dow: 4, label: 'Thu' }, { dow: 5, label: 'Fri' }, { dow: 6, label: 'Sat' },
-  ];
-  function isSelectedDateStr(dateStr, days){
-    var p = dateStr.split('-').map(Number);
-    var dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
-    return days.indexOf(dow) !== -1;
-  }
-  function computeSubDatesForDays(startStr, totalDays, days){
-    var out = [];
-    var cur = startStr;
-    var guard = 0;
-    while (out.length < totalDays && guard < 400){
-      guard++;
-      if (isSelectedDateStr(cur, days)) out.push(cur);
-      if (out.length < totalDays) cur = addDaysToDateStr(cur, 1);
-    }
-    return out;
-  }
-  function computeSubValidUntilForDays(startStr, totalDays, days){
-    var dates = computeSubDatesForDays(startStr, totalDays, days);
-    return dates.length ? dates[dates.length - 1] : startStr;
-  }
-  function addMonthToDateStr(dateStr){
-    var p = dateStr.split('-').map(Number);
-    var d = new Date(Date.UTC(p[0], p[1] - 1, p[2]));
-    d.setUTCMonth(d.getUTCMonth() + 1);
-    var y = d.getUTCFullYear();
-    var m = String(d.getUTCMonth() + 1).padStart(2, '0');
-    var day = String(d.getUTCDate()).padStart(2, '0');
-    return y + '-' + m + '-' + day;
-  }
-  // Start date must fall within today..+1 month, and can't land on a day the
-  // customer didn't select (bumped forward, day by day, to the next selected
-  // day; if none found before the max date, scan backward instead — a loop
-  // rather than a single bump, since several days in a row can be
-  // unselected, e.g. only Saturdays chosen).
-  function clampSubStartDateForDays(dateStr, days){
-    var min = todayDateStr();
-    var max = addMonthToDateStr(min);
-    var out = dateStr || min;
-    if (out < min) out = min;
-    if (out > max) out = max;
-    if (!days.length) return out;
-    var cur = out, i;
-    for (i = 0; i < 40; i++){
-      if (isSelectedDateStr(cur, days)) return cur;
-      var next = addDaysToDateStr(cur, 1);
-      if (next > max) break;
-      cur = next;
-    }
-    cur = out;
-    for (i = 0; i < 40; i++){
-      if (isSelectedDateStr(cur, days)) return cur;
-      var prev = addDaysToDateStr(cur, -1);
-      if (prev < min) break;
-      cur = prev;
-    }
-    return out;
-  }
-  // Walks forward from startStr and returns the date of the n-th selected
-  // weekday (inclusive of startStr itself if it qualifies).
-  function nthMatchingDate(startStr, days, n){
-    var count = 0;
-    var cur = startStr;
-    var guard = 0;
-    while (guard < 500){
-      guard++;
-      if (isSelectedDateStr(cur, days)){
-        count++;
-        if (count >= n) return cur;
-      }
-      cur = addDaysToDateStr(cur, 1);
-    }
-    return cur;
-  }
-  function formatCalendarDate(dateStr){
+  var MAX_SUB_DAYS = 6; function addMonthToDateStr(dateStr){ var p = dateStr.split('-').map(Number); var d = new Date(Date.UTC(p[0], p[1] - 1, p[2])); d.setUTCMonth(d.getUTCMonth() + 1); var y = d.getUTCFullYear(); var m = String(d.getUTCMonth() + 1).padStart(2, '0'); var day = String(d.getUTCDate()).padStart(2, '0'); return y + '-' + m + '-' + day; } function subWindow(){ return { min: todayDateStr(), max: addMonthToDateStr(todayDateStr()) }; } function isSubSelectable(dateStr){ var w = subWindow(); if (dateStr < w.min || dateStr > w.max) return false; var p = dateStr.split('-').map(Number); var dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); return dow !== 0; } function monthStrOf(dateStr){ return dateStr.slice(0, 7); } function addMonthsToMonthStr(monthStr, n){ var p = monthStr.split('-').map(Number); var d = new Date(Date.UTC(p[0], p[1] - 1, 1)); d.setUTCMonth(d.getUTCMonth() + n); return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0'); } function daysInMonth(monthStr){ var p = monthStr.split('-').map(Number); return new Date(Date.UTC(p[0], p[1], 0)).getUTCDate(); } function firstWeekdayOfMonth(monthStr){ var p = monthStr.split('-').map(Number); return new Date(Date.UTC(p[0], p[1] - 1, 1)).getUTCDay(); } function dateStrOf(monthStr, day){ var p = monthStr.split('-').map(Number); return p[0] + '-' + String(p[1]).padStart(2, '0') + '-' + String(day).padStart(2, '0'); } function nextSelectableDates(n){ var out = []; var cur = todayDateStr(); var guard = 0; while (out.length < n && guard < 60){ guard++; if (isSubSelectable(cur)) out.push(cur); cur = addDaysToDateStr(cur, 1); } return out; } function thisWeekWeekdayDates(){ var out = []; var cur = todayDateStr(); var guard = 0; while (guard < 8){ guard++; var p = cur.split('-').map(Number); var dow = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay(); if (isSubSelectable(cur)) out.push(cur); if (dow === 6) break; cur = addDaysToDateStr(cur, 1); } return out.slice(0, MAX_SUB_DAYS); } function formatCalendarDate(dateStr){
     if (!dateStr) return '';
     var p = dateStr.split('-');
     if (p.length !== 3) return dateStr;
@@ -477,7 +400,7 @@
     paymentStatus: null,
     menuLayout: 'vertical',
     pickupSlot: null,
-    subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
+    subItemId: null, subSugar: '100%', subAddons: {}, subDates: [], subCalendarMonth: '', subRemark: '',
     pendingSubscription: null, confirmSubInfo: null, orderTime: null, editingCartKey: null,
     searchQuery: '', usual: null, confirmPickupSlot: null,
     confirmStampsBefore: null, confirmCupsEarned: 0, lastOrderItems: null,
@@ -613,33 +536,8 @@
   }
 
   // ---- subscriptions ----
-  function openSubscribe(){
-    setState({
-      screen: 'subscribe', subItemId: state.selectedItemId,
-      subSugar: state.sugar, subAddons: Object.assign({}, state.addons),
-      subStartDate: clampSubStartDateForDays(todayDateStr(), [1,2,3,4,5,6]), subRemark: '',
-      subDaysOfWeek: [1,2,3,4,5,6],
-    });
-  }
-  function setSubSugar(v){ setState({ subSugar: v }); }
-  // Toggling a day off/on may put the current start date on a now-unselected
-  // day, so re-clamp it too, and re-clamp the end date against the new day
-  // set (shrinking counts are fine; counts over the cap get pulled back).
-  // Won't let the customer deselect the last day.
-  function toggleSubDay(dow){
-    setState(function(s){
-      var days = s.subDaysOfWeek.slice();
-      var idx = days.indexOf(dow);
-      if (idx !== -1){
-        if (days.length === 1) return {};
-        days.splice(idx, 1);
-      } else {
-        days.push(dow);
-      }
-      return { subDaysOfWeek: days, subStartDate: clampSubStartDateForDays(s.subStartDate, days) };
-    });
-  }
-  function incSubAddon(id){
+  function openSubscribe(){ setState({ screen: 'subscribe', subItemId: state.selectedItemId, subSugar: state.sugar, subAddons: Object.assign({}, state.addons), subDates: [], subCalendarMonth: monthStrOf(todayDateStr()), subRemark: '', }); } function setSubSugar(v){ setState({ subSugar: v }); }
+  function toggleSubDate(dateStr){ if (!isSubSelectable(dateStr)) return; setState(function(s){ var dates = s.subDates.slice(); var idx = dates.indexOf(dateStr); if (idx !== -1){ dates.splice(idx, 1); } else { if (dates.length >= MAX_SUB_DAYS) return {}; dates.push(dateStr); dates.sort(); } return { subDates: dates }; }); } function removeSubDate(dateStr){ setState(function(s){ return { subDates: s.subDates.filter(function(d){ return d !== dateStr; }) }; }); } function applySubPreset(kind){ setState(function(s){ if (kind === 'clear') return { subDates: [] }; var dates = kind === 'week' ? thisWeekWeekdayDates() : nextSelectableDates(MAX_SUB_DAYS); return { subDates: dates.slice(0, MAX_SUB_DAYS) }; }); } function navSubCalendar(dir){ setState(function(s){ var cur = s.subCalendarMonth || monthStrOf(todayDateStr()); var next = addMonthsToMonthStr(cur, dir); var minM = monthStrOf(todayDateStr()); var maxM = monthStrOf(addMonthToDateStr(todayDateStr())); if (next < minM) next = minM; if (next > maxM) next = maxM; return { subCalendarMonth: next }; }); } function incSubAddon(id){
     setState(function(s){
       var addons = Object.assign({}, s.subAddons);
       addons[id] = (addons[id] || 0) + 1;
@@ -654,33 +552,7 @@
       return { subAddons: addons };
     });
   }
-  // Start date is the only thing the customer edits directly — end date and
-  // day count are both fully derived from it plus the selected weekdays.
-  function setSubStartDate(v){
-    setState(function(s){
-      return { subStartDate: clampSubStartDateForDays(v, s.subDaysOfWeek) };
-    });
-  }
-
-  function goSubscriptionPay(){
-    var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
-    var unit = unitPrice(m, state.subSugar, state.subAddons);
-    var days = state.subDaysOfWeek.length;
-    var willRedeem = subWillRedeemFreeCup();
-    var discount = subFreeCupDiscount(unit);
-    var validUntil = computeSubValidUntilForDays(state.subStartDate, days, state.subDaysOfWeek);
-    var subtotal = Math.round(unit * days * 100) / 100;
-    setState({
-      pendingSubscription: {
-        item: m, sugar: state.subSugar, addons: state.subAddons, unitPrice: unit,
-        startDate: state.subStartDate, days: days, willRedeemFreeCup: willRedeem, discount: discount, validUntil: validUntil,
-        total: Math.max(0, Math.round((subtotal - discount) * 100) / 100), remark: state.subRemark, daysOfWeek: state.subDaysOfWeek,
-      },
-      screen: 'pay',
-    });
-  }
-
-  var QR_ASSET = 'assets/khqr-v2.jpg';
+  function goSubscriptionPay(){ var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0]; var unit = unitPrice(m, state.subSugar, state.subAddons); var dates = state.subDates.slice().sort(); var days = dates.length; if (!days) return; var willRedeem = subWillRedeemFreeCup(); var discount = subFreeCupDiscount(unit); var validUntil = dates[days - 1]; var subtotal = Math.round(unit * days * 100) / 100; setState({ pendingSubscription: { item: m, sugar: state.subSugar, addons: state.subAddons, unitPrice: unit, startDate: dates[0], dates: dates, days: days, willRedeemFreeCup: willRedeem, discount: discount, validUntil: validUntil, total: Math.max(0, Math.round((subtotal - discount) * 100) / 100), remark: state.subRemark, }, screen: 'pay', }); } var QR_ASSET = 'assets/khqr-v2.jpg';
 
   function shareQR(){
     fetch(QR_ASSET).then(function(res){ return res.blob(); }).then(function(blob){
@@ -802,41 +674,7 @@
     sendOrder(orderPayload);
   }
 
-  function paySubscription(sub){
-    var remark = (sub.remark || '').trim().slice(0, 50);
-    var timestamp = new Date().toISOString();
-
-    var orderPayload = {
-      orderType: 'subscription',
-      items: [{
-        name: sub.item.name, qty: 1, sugar: sub.sugar,
-        addons: addonLabels(sub.addons),
-        unitPrice: sub.unitPrice,
-      }],
-      subStartDate: sub.startDate, subDays: sub.days, subDaysOfWeek: sub.daysOfWeek,
-      subtotal: sub.total, discount: 0, total: sub.total,
-      redeemedFreeCup: false,
-      remark: remark,
-      customer: tgUser ? {
-        id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username,
-      } : null,
-      timestamp: timestamp,
-    };
-
-    setState({
-      screen: 'confirm', orderCode: null,
-      pendingSubscription: null, showReceiptNotice: false,
-      paymentStatus: 'pending', orderTime: timestamp,
-      confirmSubInfo: {
-        validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days,
-        freeDate: null, startDate: sub.startDate,
-      },
-    });
-
-    sendOrder(orderPayload);
-  }
-
-  function sendOrder(payload){
+  function paySubscription(sub){ var remark = (sub.remark || '').trim().slice(0, 50); var timestamp = new Date().toISOString(); var orderPayload = { orderType: 'subscription', items: [{ name: sub.item.name, qty: 1, sugar: sub.sugar, addons: addonLabels(sub.addons), unitPrice: sub.unitPrice, }], subDates: sub.dates, subtotal: sub.total, discount: 0, total: sub.total, redeemedFreeCup: false, remark: remark, customer: tgUser ? { id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username, } : null, timestamp: timestamp, }; setState({ screen: 'confirm', orderCode: null, pendingSubscription: null, showReceiptNotice: false, paymentStatus: 'pending', orderTime: timestamp, confirmCupsEarned: sub.days, confirmSubInfo: { validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days, freeDate: null, startDate: sub.startDate, }, }); sendOrder(orderPayload); } function sendOrder(payload){
     fetch(ORDER_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     }).then(function(res){
@@ -1038,76 +876,7 @@
       '</div>';
   }
 
-  function renderSubscribe(){
-    var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
-    var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
-    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>';
-
-    var sugarHtml = isDrink ? (
-      '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
-      SUGAR_OPTS.map(function(sg){
-        return '<div class="sugar-chip' + (sg === state.subSugar ? ' active' : '') + '" data-sub-sugar="' + sg + '">' + sg + '</div>';
-      }).join('') + '</div>'
-    ) : '';
-
-    var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS;
-    var addonsHtml = itemAddonOpts.map(function(ad){
-      var qty = state.subAddons[ad.id] || 0;
-      if (qty <= 0){
-        return '<div class="addon-chip" data-sub-addon-inc="' + ad.id + '">+ ' + esc(ad.label) + ' · $' + money(ad.price) + '</div>';
-      }
-      return '<div class="addon-item">' +
-        '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
-        '<div class="ctrl"><div class="btn" data-sub-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-sub-addon-inc="' + ad.id + '">+</div></div>' +
-      '</div>';
-    }).join('');
-
-    var unit = unitPrice(m, state.subSugar, state.subAddons);
-    var days = state.subDaysOfWeek.length;
-    var subEndDate = nthMatchingDate(state.subStartDate, state.subDaysOfWeek, days);
-    var willRedeem = subWillRedeemFreeCup();
-    var discount = subFreeCupDiscount(unit);
-    var subtotal = Math.round(unit * days * 100) / 100;
-    var total = Math.max(0, Math.round((subtotal - discount) * 100) / 100);
-    var validUntil = computeSubValidUntilForDays(state.subStartDate, days, state.subDaysOfWeek);
-    var maxStartDate = addMonthToDateStr(todayDateStr());
-    var dayHint = 'Closed on Sundays · number of days matches how many weekdays you selected';
-
-    var bonusRow = willRedeem
-      ? '<div class="row"><span>🎁 Free cup reward (last day free)</span><span>−$' + money(discount) + '</span></div>'
-      : '';
-
-    var remarkHtml = '' +
-      '<div class="remark-box">' +
-        '<div class="remark-label"><span>Order remark</span><span class="count" id="subRemarkCount">' + state.subRemark.length + '/50</span></div>' +
-        '<textarea id="subRemarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.subRemark) + '</textarea>' +
-      '</div>';
-
-    return '' +
-      '<div class="item-hero">' + hero + '</div>' +
-      '<div class="detail-body">' +
-        '<div class="nm">Subscribe · ' + esc(m.name) + '</div>' +
-        '<div class="pr">$' + money(unit) + '/day</div>' +
-        sugarHtml +
-        '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' +
-        '<div class="sec-label">Which days?</div>' +
-        '<div class="day-toggle">' + SUB_DAY_OPTS.map(function(d){
-          return '<div class="d-opt' + (state.subDaysOfWeek.indexOf(d.dow) !== -1 ? ' active' : '') + '" data-sub-day="' + d.dow + '">' + d.label + '</div>';
-        }).join('') + '</div>' +
-        '<div class="sec-label">Start date</div>' +
-        '<input type="date" class="date-input" id="subStartInput" value="' + esc(state.subStartDate) + '" min="' + todayDateStr() + '" max="' + maxStartDate + '">' +
-        '<div class="date-hint">' + esc(dayHint) + '</div>' +
-        '<div class="qty-row"><div class="lbl">Number of days</div><div class="ctrl"><div class="n">' + days + '</div></div></div>' +
-        '<div class="sub-summary">' +
-          '<div class="row"><span>Valid</span><span>' + esc(formatCalendarDate(state.subStartDate)) + ' → ' + esc(formatCalendarDate(validUntil)) + '</span></div>' +
-          bonusRow +
-          '<div class="row total"><span>Total</span><span>$' + money(total) + '</span></div>' +
-        '</div>' +
-        remarkHtml +
-      '</div>';
-  }
-
-  function renderCart(){
+  function renderSubscribe(){ var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0]; var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1; var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>'; var sugarHtml = isDrink ? ( '<div class="sec-label">Sugar level</div><div class="sugar-row">' + SUGAR_OPTS.map(function(sg){ return '<div class="sugar-chip' + (sg === state.subSugar ? ' active' : '') + '" data-sub-sugar="' + sg + '">' + sg + '</div>'; }).join('') + '</div>' ) : ''; var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS; var addonsHtml = itemAddonOpts.map(function(ad){ var qty = state.subAddons[ad.id] || 0; if (qty <= 0){ return '<div class="addon-chip" data-sub-addon-inc="' + ad.id + '">+ ' + esc(ad.label) + ' · $' + money(ad.price) + '</div>'; } return '<div class="addon-item">' + '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' + '<div class="ctrl"><div class="btn" data-sub-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-sub-addon-inc="' + ad.id + '">+</div></div>' + '</div>'; }).join(''); var unit = unitPrice(m, state.subSugar, state.subAddons); var dates = state.subDates.slice().sort(); var days = dates.length; var willRedeem = subWillRedeemFreeCup(); var discount = subFreeCupDiscount(unit); var subtotal = Math.round(unit * days * 100) / 100; var total = Math.max(0, Math.round((subtotal - discount) * 100) / 100); var w = subWindow(); var calMonth = state.subCalendarMonth || monthStrOf(w.min); var minMonth = monthStrOf(w.min); var maxMonth = monthStrOf(w.max); var monthLabel = (MONTH_NAMES[parseInt(calMonth.slice(5,7), 10) - 1] || '') + ' ' + calMonth.slice(0, 4); var firstDow = firstWeekdayOfMonth(calMonth); var totalDaysInMonth = daysInMonth(calMonth); var cellsHtml = ''; var i; for (i = 0; i < firstDow; i++){ cellsHtml += '<div class="cal-day empty"></div>'; } var d; for (d = 1; d <= totalDaysInMonth; d++){ var ds = dateStrOf(calMonth, d); var selectable = isSubSelectable(ds); var selected = dates.indexOf(ds) !== -1; var isSunday = (firstDow + d - 1) % 7 === 0; var cls = 'cal-day' + (selectable ? ' pick' : ' off') + (selected ? ' selected' : '') + (isSunday ? ' sun' : ''); cellsHtml += '<div class="' + cls + '" data-sub-cal-day="' + (selectable ? ds : '') + '">' + d + '</div>'; } var prevDisabled = calMonth <= minMonth; var nextDisabled = calMonth >= maxMonth; var calHtml = '' + '<div class="sub-cal-card">' + '<div class="sub-cal-nav">' + '<div class="cal-nav-btn' + (prevDisabled ? ' disabled' : '') + '" id="subCalPrev">‹</div>' + '<div class="cal-nav-label">' + esc(monthLabel) + '</div>' + '<div class="cal-nav-btn' + (nextDisabled ? ' disabled' : '') + '" id="subCalNext">›</div>' + '</div>' + '<div class="sub-cal-dow"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' + '<div class="sub-cal-grid">' + cellsHtml + '</div>' + '</div>'; var presetsHtml = '' + '<div class="sub-cal-presets">' + '<div class="cal-preset-chip" data-sub-preset="6">Next 6 days</div>' + '<div class="cal-preset-chip" data-sub-preset="week">Rest of this week</div>' + '<div class="cal-preset-chip" data-sub-preset="clear">Clear</div>' + '</div>'; var chipsHtml = days ? ( '<div class="sub-date-chips">' + dates.map(function(ds){ return '<div class="sub-date-chip" data-sub-date-remove="' + ds + '">' + esc(formatCalendarDate(ds)) + ' ✕</div>'; }).join('') + '</div>' ) : '<div class="sub-cal-empty">Tap dates on the calendar to build your subscription (up to ' + MAX_SUB_DAYS + ' days).</div>'; var bonusRow = (days && willRedeem) ? '<div class="row"><span>🎁 Free cup reward (last day free)</span><span>−$' + money(discount) + '</span></div>' : ''; var summaryHtml = days ? ( '<div class="sub-summary">' + '<div class="row"><span>Days selected</span><span>' + days + ' / ' + MAX_SUB_DAYS + '</span></div>' + bonusRow + '<div class="row total"><span>Total</span><span>$' + money(total) + '</span></div>' + '</div>' ) : ''; var remarkHtml = '' + '<div class="remark-box">' + '<div class="remark-label"><span>Order remark</span><span class="count" id="subRemarkCount">' + state.subRemark.length + '/50</span></div>' + '<textarea id="subRemarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.subRemark) + '</textarea>' + '</div>'; return '' + '<div class="item-hero">' + hero + '</div>' + '<div class="detail-body">' + '<div class="nm">Subscribe · ' + esc(m.name) + '</div>' + '<div class="pr">$' + money(unit) + '/day</div>' + sugarHtml + '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' + '<div class="sec-label">Pick your days</div>' + calHtml + presetsHtml + chipsHtml + '<div class="date-hint">Closed on Sundays · pick up to ' + MAX_SUB_DAYS + ' days within the next month</div>' + summaryHtml + remarkHtml + '</div>'; } function renderCart(){
     var keys = Object.keys(state.cart);
     if (keys.length === 0){
       return '<div class="empty-cart"><div class="t1">Your bag is empty</div><div class="t2">Add something tasty from the menu.</div></div>';
@@ -1209,9 +978,7 @@
     }[state.paymentStatus] || '';
     var payStatusHtml = payStatusText ? '<div class="pay-status ' + esc(state.paymentStatus) + '">' + esc(payStatusText) + '</div>' : '';
     var orderTimeHtml = state.orderTime ? '<div class="order-time">Order Time: ' + esc(formatOrderTime(state.orderTime)) + '</div>' : '';
-    var subHtml = isSub ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b>' + (state.confirmSubInfo.freeDate ? '<br><span style="opacity:.85">🎁 ' + esc(formatCalendarDate(state.confirmSubInfo.freeDate)) + ' is free — loyalty reward applied!</span>' : '') + '</div>' : '';
-
-    var etaHtml = '';
+    var subHtml = isSub ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b></div>' : ''; var etaHtml = '';
     if (!isSub && state.confirmPickupSlot){
       var etaLine1 = state.confirmPickupSlot === 'afternoon' ? '🛵 Arriving this afternoon' : '🛵 Arriving in the morning round';
       var etaLine2 = state.confirmPickupSlot === 'afternoon' ? 'Between 1:00 and 2:00 PM' : 'Between 7:00 and 8:00 AM';
@@ -1219,7 +986,7 @@
     }
 
     var stampEarnedHtml = '';
-    if (!isSub && state.confirmCupsEarned > 0){
+    if (state.confirmCupsEarned > 0){
       var n = state.confirmCupsEarned;
       var stampsIconsHtml = '';
       for (var i = 0; i < STAMPS_NEEDED; i++){ stampsIconsHtml += '<div class="stamp-icon' + (i < state.stamps ? ' filled' : '') + '">☕</div>'; }
@@ -1319,11 +1086,11 @@
     } else if (state.screen === 'subscribe'){
       var sm = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
       var sunit = unitPrice(sm, state.subSugar, state.subAddons);
-      var sdays = state.subDaysOfWeek.length;
+      var sdays = state.subDates.length;
       var sDiscount = subFreeCupDiscount(sunit);
       var sSubtotal = Math.round(sunit * sdays * 100) / 100;
       var sTotal = Math.max(0, Math.round((sSubtotal - sDiscount) * 100) / 100);
-      label = 'Subscribe · $' + money(sTotal);
+      if (!sdays) disabledReason = 'Pick your days'; label = 'Subscribe · $' + money(sTotal);
       action = goSubscriptionPay;
     } else if (state.screen === 'cart'){
       var totals = computeTotal();
@@ -1423,12 +1190,7 @@
     content.querySelectorAll('[data-sub-addon-dec]').forEach(function(el){
       el.addEventListener('click', function(){ decSubAddon(el.getAttribute('data-sub-addon-dec')); });
     });
-    content.querySelectorAll('[data-sub-day]').forEach(function(el){
-      el.addEventListener('click', function(){ toggleSubDay(parseInt(el.getAttribute('data-sub-day'), 10)); });
-    });
-    var subStartInput = document.getElementById('subStartInput');
-    if (subStartInput) subStartInput.addEventListener('change', function(e){ setSubStartDate(e.target.value); });
-    var subRemarkInput = document.getElementById('subRemarkInput');
+    content.querySelectorAll('[data-sub-cal-day]').forEach(function(el){ var ds = el.getAttribute('data-sub-cal-day'); if (!ds) return; el.addEventListener('click', function(){ toggleSubDate(ds); }); }); var subCalPrev = document.getElementById('subCalPrev'); if (subCalPrev) subCalPrev.addEventListener('click', function(){ navSubCalendar(-1); }); var subCalNext = document.getElementById('subCalNext'); if (subCalNext) subCalNext.addEventListener('click', function(){ navSubCalendar(1); }); content.querySelectorAll('[data-sub-preset]').forEach(function(el){ el.addEventListener('click', function(){ applySubPreset(el.getAttribute('data-sub-preset')); }); }); content.querySelectorAll('[data-sub-date-remove]').forEach(function(el){ el.addEventListener('click', function(){ removeSubDate(el.getAttribute('data-sub-date-remove')); }); }); var subRemarkInput = document.getElementById('subRemarkInput');
     if (subRemarkInput){
       subRemarkInput.addEventListener('input', function(e){
         var v = e.target.value.slice(0, 50);
