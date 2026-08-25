@@ -48,6 +48,8 @@ async function generateOrderCode(client) {
     return `7T-${n}`;
 }
 
+function addOneMonth(dateStr) { const d = new Date(`${dateStr}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); return d.toISOString().slice(0, 10); }
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
           res.setHeader('Allow', 'POST');
@@ -102,25 +104,7 @@ export default async function handler(req, res) {
           orderCode = `7T-${Date.now().toString().slice(-6)}`;
     }
 
-  const rawDaysOfWeek = Array.isArray(order.subDaysOfWeek) ? order.subDaysOfWeek : [];
-    const cleanedDaysOfWeek = Array.from(new Set(
-          rawDaysOfWeek.map((d) => parseInt(d, 10)).filter((d) => VALID_SUB_DOWS.indexOf(d) !== -1)
-        ));
-    const subDaysOfWeek = cleanedDaysOfWeek.length ? cleanedDaysOfWeek : VALID_SUB_DOWS.slice();
-
-  if (isSubscription) {
-        const item = order.items[0];
-        const unitPrice = Number(item && item.unitPrice) || 0;
-        const subDays = Math.max(1, Math.min(MAX_SUB_DAYS, parseInt(order.subDays, 10) || 0));
-        const rawStartDate = typeof order.subStartDate === 'string' ? order.subStartDate : null;
-
-      if (!rawStartDate || subDays < 1) {
-              return res.status(400).json({ ok: false, error: 'Subscription must include a valid start date and day count' });
-      }
-
-      const today = todayInPhnomPenh();
-        const subStartDate = clampSubStartDate(rawStartDate, today, subDaysOfWeek);
-        const subDates = computeSubDates(subStartDate, subDays, subDaysOfWeek);
+  if (isSubscription) { const item = order.items[0]; const unitPrice = Number(item && item.unitPrice) || 0; const today = todayInPhnomPenh(); const maxSubDate = addOneMonth(today); const rawSubDates = Array.isArray(order.subDates) ? order.subDates : []; const subDates = Array.from(new Set(rawSubDates.filter((d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d)))).filter((d) => { if (d < today || d > maxSubDate) return false; const dow = new Date(`${d}T00:00:00Z`).getUTCDay(); return dow !== 0; }).sort().slice(0, MAX_SUB_DAYS); if (subDates.length < 1) { return res.status(400).json({ ok: false, error: 'Subscription must include at least one valid day (Mon-Sat, within the next month)' }); } const subDays = subDates.length; const subStartDate = subDates[0];
 
       let freeCupApplied = false;
         let priorLastCupPrice = null;
@@ -189,7 +173,7 @@ export default async function handler(req, res) {
               items: [item],
               subtotal: subSubtotal, discount: appliedDiscount, total: appliedTotal,
               redeemedFreeCup: freeCupApplied, remark,
-              subStartDate, subDays, subDaysOfWeek, subFreeDate,
+              subStartDate, subDays, subFreeDate,
               subDates, subValidUntil: subDates[subDates.length - 1],
               subRedeemedDates: [],
               status: 'pending', confirmedByName: null,
