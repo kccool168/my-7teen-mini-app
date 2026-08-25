@@ -57,6 +57,29 @@
   .cat-row{padding:6px 16px 12px;display:flex;gap:8px;overflow-x:auto}
   .cat-chip{flex-shrink:0;padding:8px 16px;border-radius:20px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;background:var(--chip-bg);color:var(--chip-text)}
   .cat-chip.active{background:var(--accent);color:#fff}
+  .search-box{padding:0 16px 10px;position:sticky;top:52px;background:var(--bg);z-index:4}
+  .search-box input{width:100%;padding:11px 14px;border-radius:14px;border:1px solid var(--border);background:var(--card);font-family:inherit;font-size:13.5px;color:var(--text)}
+  .search-box input:focus{outline:none;border-color:var(--accent)}
+  .usual-row{padding:0 16px 10px}
+  .usual-card{display:flex;align-items:center;gap:12px;padding:10px;background:var(--info-bg);border-radius:18px}
+  .usual-thumb{width:52px;height:52px;border-radius:12px;flex-shrink:0;overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.5)}
+  .usual-thumb img{width:100%;height:100%;object-fit:cover}
+  .usual-info{flex:1;min-width:0;cursor:pointer}
+  .usual-lbl{font-size:11px;font-weight:700;color:var(--info-text);text-transform:uppercase;letter-spacing:.3px}
+  .usual-nm{font-weight:800;font-size:14px;margin-top:1px}
+  .eta-card{margin-top:14px;padding:14px 16px;background:var(--info-bg);border-radius:16px;text-align:left}
+  .eta-card .eta-l1{font-weight:800;font-size:14px;color:var(--info-text)}
+  .eta-card .eta-l2{font-size:12.5px;color:var(--info-text);opacity:.85;margin-top:2px}
+  .stamp-earned-card{margin-top:14px;padding:14px 16px;background:var(--accent);border-radius:16px;color:#fff;text-align:left;animation:fadeUp .3s ease}
+  .stamp-earned-card .se-top{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:14px}
+  .stamp-earned-card .stamp-icons{margin-top:10px}
+  .stamp-earned-card .stamp-icon{background:rgba(255,255,255,.25)}
+  .stamp-earned-card .stamp-icon.filled{background:rgba(255,255,255,.95);color:var(--accent)}
+  .stamp-earned-card .se-msg{font-size:12px;opacity:.9;margin-top:8px;font-weight:600}
+  .reorder-btn{margin-top:16px;padding:12px;border-radius:14px;background:var(--chip-bg);color:var(--chip-text);font-weight:700;font-size:13.5px;cursor:pointer}
+  .reorder-btn:active{background:var(--border)}
+  #main-btn.disabled{opacity:.5;pointer-events:none}
+
 
   .list-toolbar{padding:0 16px 8px;display:flex;justify-content:flex-end}
   .layout-toggle{display:flex;gap:3px;background:var(--chip-bg);border-radius:12px;padding:3px}
@@ -71,7 +94,7 @@
   .item-card{display:flex;gap:12px;padding:10px;background:var(--card);border-radius:18px;border:1px solid var(--border)}
   .item-thumb{width:72px;height:72px;border-radius:14px;flex-shrink:0;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 8px,#dceefa 8px,#dceefa 16px);display:flex;align-items:center;justify-content:center;overflow:hidden}
   .item-thumb img{width:100%;height:100%;object-fit:cover}
-  .item-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line}
+  .item-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line} .ph-glyph{font-size:32px;font-family:inherit;line-height:1}
   .item-info{flex:1;cursor:pointer;min-width:0}
   .item-info .nm{font-weight:800;font-size:14.5px}
   .item-info .ds{font-size:12px;color:var(--text-soft2);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -456,6 +479,8 @@
     pickupSlot: null,
     subItemId: null, subSugar: '100%', subAddons: {}, subStartDate: '', subRemark: '', subDaysOfWeek: [1,2,3,4,5,6],
     pendingSubscription: null, confirmSubInfo: null, orderTime: null, editingCartKey: null,
+    searchQuery: '', usual: null, confirmPickupSlot: null,
+    confirmStampsBefore: null, confirmCupsEarned: 0, lastOrderItems: null,
   };
 
   function setState(patch){
@@ -762,7 +787,12 @@
     // so it's guaranteed unique — orderCode starts null here and the confirm
     // screen shows a brief "generating" placeholder until sendOrder's
     // response fills it in and kicks off payment-status polling.
+    var cupsInOrder = Object.keys(cart).reduce(function(sum, k){ return sum + cart[k].qty; }, 0);
+    var stampsBeforeOrder = state.stamps;
+    var cartSnapshot = JSON.parse(JSON.stringify(cart));
+    var pickupSlotSnapshot = state.pickupSlot;
     setState({
+      confirmPickupSlot: pickupSlotSnapshot, confirmStampsBefore: stampsBeforeOrder, confirmCupsEarned: cupsInOrder, lastOrderItems: cartSnapshot,
       screen: 'confirm', orderCode: null, cart: {},
       redeemFreeCup: false, showReceiptNotice: false, remark: '',
       paymentStatus: 'pending', orderTime: timestamp, confirmSubInfo: null,
@@ -847,6 +877,23 @@
       })
       .catch(function(err){ console.error('Failed to load stamps', err); });
   }
+  function loadUsual(){
+    if (!tgUser || tgUser.id == null) return;
+    fetch('/api/usual?userId=' + encodeURIComponent(tgUser.id))
+      .then(function(res){ return res.json(); })
+      .then(function(data){
+        if (data && data.ok && data.usual && data.usual.name){
+          var m = MENU.find(function(x){ return x.name.toLowerCase() === String(data.usual.name).toLowerCase(); });
+          if (m) setState({ usual: { id: m.id, sugar: data.usual.sugar || '100%' } });
+        }
+      })
+      .catch(function(err){ console.error('Failed to load usual order', err); });
+  }
+  function addUsualToCart(){
+    if (!state.usual) return;
+    cartInc(state.usual.id, state.usual.sugar || '100%', {});
+  }
+
 
   // ---- render helpers ----
   function screenTitle(){
@@ -860,7 +907,7 @@
     var qty = entry ? entry.qty : 0;
     var thumb = m.photo
       ? '<img src="' + esc(m.photo) + '" alt="">'
-      : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+      : '<span class="lbl ph-glyph">☕</span';
     var ctrl = qty > 0
       ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
       : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
@@ -882,7 +929,7 @@
     var qty = entry ? entry.qty : 0;
     var thumb = m.photo
       ? '<img src="' + esc(m.photo) + '" alt="">'
-      : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+      : '<span class="lbl ph-glyph">☕</span';
     var ctrl = qty > 0
       ? '<div class="qty-pill"><div class="btn" data-dec="' + m.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-inc="' + m.id + '">+</div></div>'
       : '<div class="add-btn" data-inc="' + m.id + '">+</div>';
@@ -899,39 +946,60 @@
 
   function renderHome(){
     var heroName = esc((tgUser && tgUser.first_name) || 'Friend');
+    var searchQ = (state.searchQuery || '').trim().toLowerCase();
+    var isSearching = searchQ.length > 0;
     var catsHtml = CATEGORIES.map(function(c){
       return '<div class="cat-chip' + (c === state.category ? ' active' : '') + '" data-cat="' + esc(c) + '">' + esc(c) + '</div>';
     }).join('');
-
-    var items = MENU.filter(function(m){ return m.category === state.category; });
+    var items = isSearching
+      ? MENU.filter(function(m){ return m.name.toLowerCase().indexOf(searchQ) !== -1; })
+      : MENU.filter(function(m){ return m.category === state.category; });
     var isGrid = state.menuLayout === 'grid';
-    var itemsHtml = items.map(isGrid ? renderGridCard : renderListCard).join('');
-
+    var itemsHtml = items.length
+      ? items.map(isGrid ? renderGridCard : renderListCard).join('')
+      : '<div class="empty-cart"><div class="t1">No drinks found</div><div class="t2">Try a different search.</div></div>';
     var toolbarHtml = '' +
       '<div class="list-toolbar"><div class="layout-toggle">' +
-        '<div class="lt-btn' + (isGrid ? '' : ' active') + '" data-layout="vertical" title="List view">☰</div>' +
-        '<div class="lt-btn' + (isGrid ? ' active' : '') + '" data-layout="grid" title="Grid view">▦</div>' +
+      '<div class="lt-btn' + (isGrid ? '' : ' active') + '" data-layout="vertical" title="List view">☰</div>' +
+      '<div class="lt-btn' + (isGrid ? ' active' : '') + '" data-layout="grid" title="Grid view">▦</div>' +
       '</div></div>';
-
-    return '' +
+    var closedNow = isDeliveryWindow();
+    var bannerHtml = closedNow ? (
+      '<div class="cutoff-banner" style="margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:#E7F2FA;color:#145E90;font-size:13px;font-weight:600;line-height:1.4;display:flex;gap:8px;align-items:flex-start;">' +
+      '<span>🚚</span>' +
+      '<span>Delivery on the way — ordering reopens at 8:00 AM <span id="closedCountdown" style="font-weight:800"></span></span>' +
+      '</div>'
+    ) : (
       '<div class="cutoff-banner" style="margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:#FFF3CD;color:#7A5B00;font-size:13px;font-weight:600;line-height:1.4;display:flex;gap:8px;align-items:flex-start;">' +
       '<span>⏰</span>' +
       '<span>Please place your order before 7:00 AM. Orders placed after 7:00 AM will be prepared for the next delivery round.</span>' +
-      '</div>' +
+      '</div>'
+    );
+    var searchHtml = '<div class="search-box"><input type="text" id="menuSearchInput" placeholder="Search drinks…" value="' + esc(state.searchQuery || '') + '"></div>';
+    var usualM = state.usual ? MENU.find(function(x){ return x.id === state.usual.id; }) : null;
+    var usualHtml = (!isSearching && usualM) ? (
+      '<div class="usual-row"><div class="usual-card">' +
+        '<div class="usual-thumb" data-open="' + usualM.id + '">' + (usualM.photo ? '<img src="' + esc(usualM.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>') + '</div>' +
+        '<div class="usual-info" data-open="' + usualM.id + '"><div class="usual-lbl">Your usual</div><div class="usual-nm">' + esc(usualM.name) + '</div></div>' +
+        '<div class="add-btn" data-usual-add="1">+</div>' +
+      '</div></div>'
+    ) : '';
+    return '' +
+      bannerHtml +
       '<div class="home-top">' +
         '<img class="logo" src="assets/7Teen_Logo.png" alt="7Teen Café">' +
         '<div class="greet"><div class="hey">Hey ' + heroName + ' 👋</div><div class="q">What are you feeling today?</div></div>' +
         '<div class="stamp-badge" id="rewardsBtn"><span>☕</span><span class="n">' + state.stamps + '/' + STAMPS_NEEDED + '</span></div>' +
       '</div>' +
-      '<div class="cat-row">' + catsHtml + '</div>' +
+      searchHtml +
+      usualHtml +
+      (isSearching ? '' : '<div class="cat-row">' + catsHtml + '</div>') +
       toolbarHtml +
       (isGrid ? '<div class="item-grid">' + itemsHtml + '</div>' : '<div class="item-list">' + itemsHtml + '</div>');
-  }
-
-  function renderItem(){
+  }function renderItem(){
     var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
     var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
-    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span';
 
     var sugarHtml = isDrink ? (
       '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
@@ -943,6 +1011,9 @@
     var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS;
     var addonsHtml = itemAddonOpts.map(function(ad){
       var qty = state.addons[ad.id] || 0;
+      if (qty <= 0){
+        return '<div class="addon-chip" data-addon-inc="' + ad.id + '">+ ' + esc(ad.label) + ' · $' + money(ad.price) + '</div>';
+      }
       return '<div class="addon-item">' +
         '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
         '<div class="ctrl"><div class="btn" data-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-addon-inc="' + ad.id + '">+</div></div>' +
@@ -970,7 +1041,7 @@
   function renderSubscribe(){
     var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0];
     var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1;
-    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl">' + esc(m.imgLabel) + '</span>';
+    var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span';
 
     var sugarHtml = isDrink ? (
       '<div class="sec-label">Sugar level</div><div class="sugar-row">' +
@@ -982,6 +1053,9 @@
     var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS;
     var addonsHtml = itemAddonOpts.map(function(ad){
       var qty = state.subAddons[ad.id] || 0;
+      if (qty <= 0){
+        return '<div class="addon-chip" data-sub-addon-inc="' + ad.id + '">+ ' + esc(ad.label) + ' · $' + money(ad.price) + '</div>';
+      }
       return '<div class="addon-item">' +
         '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' +
         '<div class="ctrl"><div class="btn" data-sub-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn" data-sub-addon-inc="' + ad.id + '">+</div></div>' +
@@ -1127,46 +1201,53 @@
 
   function renderConfirm(){
     var isSub = !!state.confirmSubInfo;
-    var receiptNotice = state.showReceiptNotice
-      ? '<div class="owner-notice"><span>🧾</span><span>Receipt sent to your Telegram</span></div>' : '';
-
-    // Live payment status, cross-checked against the same record staff use
-    // (manual "Mark Paid" taps or automatic bank-notification matching) —
-    // not just the cosmetic Received/Preparing/Ready timer below. Uses the
-    // simplified 3-state wording: Order Accepted (always) + Payment
-    // Pending / Payment Done / Payment Not Received.
+    var receiptNotice = state.showReceiptNotice ? '<div class="owner-notice"><span>🧾</span><span>Receipt sent to your Telegram</span></div>' : '';
     var payStatusText = {
       pending: '🟡 Payment Pending',
       paid: '✅ Payment Done',
       unpaid: '⚠️ Payment Not Received — please show this screen to staff',
     }[state.paymentStatus] || '';
-    var payStatusHtml = payStatusText
-      ? '<div class="pay-status ' + esc(state.paymentStatus) + '">' + esc(payStatusText) + '</div>' : '';
+    var payStatusHtml = payStatusText ? '<div class="pay-status ' + esc(state.paymentStatus) + '">' + esc(payStatusText) + '</div>' : '';
+    var orderTimeHtml = state.orderTime ? '<div class="order-time">Order Time: ' + esc(formatOrderTime(state.orderTime)) + '</div>' : '';
+    var subHtml = isSub ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b>' + (state.confirmSubInfo.freeDate ? '<br><span style="opacity:.85">🎁 ' + esc(formatCalendarDate(state.confirmSubInfo.freeDate)) + ' is free — loyalty reward applied!</span>' : '') + '</div>' : '';
 
-    var orderTimeHtml = state.orderTime
-      ? '<div class="order-time">Order Time: ' + esc(formatOrderTime(state.orderTime)) + '</div>' : '';
+    var etaHtml = '';
+    if (!isSub && state.confirmPickupSlot){
+      var etaLine1 = state.confirmPickupSlot === 'afternoon' ? '🛵 Arriving this afternoon' : '🛵 Arriving in the morning round';
+      var etaLine2 = state.confirmPickupSlot === 'afternoon' ? 'Between 1:00 and 2:00 PM' : 'Between 7:00 and 8:00 AM';
+      etaHtml = '<div class="eta-card"><div class="eta-l1">' + esc(etaLine1) + '</div><div class="eta-l2">' + esc(etaLine2) + '</div></div>';
+    }
 
-    var subHtml = isSub
-      ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b>' +
-        (state.confirmSubInfo.freeDate ? '<br><span style="opacity:.85">🎁 ' + esc(formatCalendarDate(state.confirmSubInfo.freeDate)) + ' is free — loyalty reward applied!</span>' : '') +
-        '</div>'
-      : '';
+    var stampEarnedHtml = '';
+    if (!isSub && state.confirmCupsEarned > 0){
+      var n = state.confirmCupsEarned;
+      var stampsIconsHtml = '';
+      for (var i = 0; i < STAMPS_NEEDED; i++){ stampsIconsHtml += '<div class="stamp-icon' + (i < state.stamps ? ' filled' : '') + '">☕</div>'; }
+      var toGo = STAMPS_NEEDED - state.stamps;
+      var progressMsg = state.freeCups > 0 ? '🎉 You have a free cup ready!' : (toGo + ' more cup' + (toGo === 1 ? '' : 's') + ' to a free drink');
+      stampEarnedHtml = '<div class="stamp-earned-card">' +
+        '<div class="se-top"><span>☕ +' + n + ' stamp' + (n === 1 ? '' : 's') + ' earned</span><span>' + state.stamps + '/' + STAMPS_NEEDED + '</span></div>' +
+        '<div class="stamp-icons">' + stampsIconsHtml + '</div>' +
+        '<div class="se-msg">' + esc(progressMsg) + '</div>' +
+      '</div>';
+    }
+
+    var reorderHtml = (!isSub && state.lastOrderItems && Object.keys(state.lastOrderItems).length) ? '<div class="reorder-btn" id="reorderBtn">🔄 Order this again</div>' : '';
 
     return '' +
       '<div class="confirm-wrap">' +
-        '<div class="check">✓</div>' +
-        '<div class="t1">' + (isSub ? 'Subscription placed!' : 'Order placed!') + '</div>' +
-        '<div class="t2">' + (isSub ? 'Show this screen to staff to redeem each day.' : 'Your drinks is on the way, stay calm!') + '</div>' +
-        '<div class="pickup-box"><div class="lbl">INV. ID</div><div class="code">' + esc(state.orderCode || 'Generating…') + '</div></div>' +
-        orderTimeHtml +
-        subHtml +
-        receiptNotice +
-        '<div class="pay-status accepted">✅ Order Accepted</div>' +
-        payStatusHtml +
+      '<div class="check">✓</div>' +
+      '<div class="t1">' + (isSub ? 'Subscription placed!' : 'Order placed!') + '</div>' +
+      '<div class="t2">' + (isSub ? 'Show this screen to staff to redeem each day.' : 'Your drinks is on the way, stay calm!') + '</div>' +
+      '<div class="pickup-box"><div class="lbl">INV. ID</div><div class="code">' + esc(state.orderCode || 'Generating…') + '</div></div>' +
+      orderTimeHtml + subHtml +
+      etaHtml + stampEarnedHtml +
+      receiptNotice +
+      '<div class="pay-status accepted">✅ Order Accepted</div>' +
+      payStatusHtml +
+      reorderHtml +
       '</div>';
-  }
-
-  function renderRewards(){
+  }function renderRewards(){
     var stampsHtml = '';
     for (var i = 0; i < STAMPS_NEEDED; i++){
       stampsHtml += '<div class="stamp-icon' + (i < state.stamps ? ' filled' : '') + '">☕</div>';
@@ -1221,13 +1302,15 @@
   // ---- main button (Telegram native, fallback custom) ----
   function updateMainButton(){
     var showMain = ['item','cart','pay','subscribe','confirm'].indexOf(state.screen) !== -1;
-// Single-order checkout pauses 7:00-8:00 AM while that morning's cups
+    var disabledReason = null;
+    // Single-order checkout pauses 7:00-8:00 AM while that morning's cups
     // are out for delivery — subscriptions and browsing are unaffected.
-    if ((state.screen === 'cart' || state.screen === 'pay') && !state.pendingSubscription && isDeliveryWindow()){ showMain = false; }
+    if ((state.screen === 'cart' || state.screen === 'pay') && !state.pendingSubscription && isDeliveryWindow()){
+      disabledReason = 'Reopens at 8:00 AM';
+    }
     var label, action, label2 = null, action2 = null;
     if (state.screen === 'confirm'){
-      label = 'Done';
-      action = backHome;
+      label = 'Done'; action = backHome;
     } else if (state.screen === 'item'){
       var m = MENU.find(function(x){ return x.id === state.selectedItemId; }) || MENU[0];
       var unit = unitPrice(m, state.sugar, state.addons);
@@ -1246,40 +1329,33 @@
       var totals = computeTotal();
       var keys = Object.keys(state.cart);
       if (keys.length === 0){ showMain = false; }
-      if (!state.pickupSlot){ showMain = false; }
+      else if (!state.pickupSlot){ disabledReason = 'Choose a delivery time'; }
       label = "Pay · $" + money(totals.total);
       action = goPay;
     } else if (state.screen === 'pay'){
-      label = "I've Paid ✅";
-      action = pay;
-      label2 = 'Pay Later ☑️';
-      action2 = pay;
+      label = "I've Paid ✅"; action = pay;
+      label2 = 'Pay Later ☑️'; action2 = pay;
     }
-
+    if (disabledReason && showMain){ label = disabledReason; }
     var wrap = document.getElementById('main-btn-wrap');
     var btn = document.getElementById('main-btn');
     var btn2 = document.getElementById('main-btn2');
-
     if (tg && tg.MainButton){
       if (showMain){
         tg.MainButton.setText(label);
         tg.MainButton.show();
+        if (disabledReason){ if (tg.MainButton.disable) tg.MainButton.disable(); else if (tg.MainButton.setParams) tg.MainButton.setParams({ is_active: false }); }
+        else { if (tg.MainButton.enable) tg.MainButton.enable(); else if (tg.MainButton.setParams) tg.MainButton.setParams({ is_active: true }); }
         tg.MainButton.offClick(mainButtonHandler);
-        mainButtonHandler = action;
+        mainButtonHandler = disabledReason ? function(){} : action;
         tg.MainButton.onClick(mainButtonHandler);
+        if (tg.SecondaryButton){
+          if (label2 && !disabledReason){ tg.SecondaryButton.setText(label2); tg.SecondaryButton.show(); tg.SecondaryButton.offClick(secondaryButtonHandler); secondaryButtonHandler = action2; tg.SecondaryButton.onClick(secondaryButtonHandler); }
+          else { tg.SecondaryButton.hide(); }
+        }
       } else {
         tg.MainButton.hide();
-      }
-      if (tg.SecondaryButton){
-        if (label2){
-          tg.SecondaryButton.setText(label2);
-          tg.SecondaryButton.show();
-          tg.SecondaryButton.offClick(secondaryButtonHandler);
-          secondaryButtonHandler = action2;
-          tg.SecondaryButton.onClick(secondaryButtonHandler);
-        } else {
-          tg.SecondaryButton.hide();
-        }
+        if (tg.SecondaryButton) tg.SecondaryButton.hide();
       }
       wrap.className = '';
       document.getElementById('content').className = '';
@@ -1287,14 +1363,10 @@
       if (showMain){
         wrap.className = 'show';
         btn.textContent = label;
-        btn.onclick = action;
-        if (label2){
-          btn2.style.display = 'flex';
-          btn2.textContent = label2;
-          btn2.onclick = action2;
-        } else {
-          btn2.style.display = 'none';
-        }
+        btn.className = disabledReason ? 'disabled' : '';
+        btn.onclick = disabledReason ? null : action;
+        if (label2 && !disabledReason){ btn2.style.display = 'flex'; btn2.textContent = label2; btn2.onclick = action2; }
+        else { btn2.style.display = 'none'; }
         document.getElementById('content').className = 'has-fallback-btn';
       } else {
         wrap.className = '';
@@ -1408,6 +1480,24 @@
 
     var qrShareBtn = document.getElementById('qrShareBtn');
     if (qrShareBtn) qrShareBtn.addEventListener('click', shareQR);
+
+    var menuSearchInput = document.getElementById('menuSearchInput');
+    if (menuSearchInput){
+      menuSearchInput.addEventListener('input', function(e){
+        state.searchQuery = e.target.value;
+        render();
+        var el = document.getElementById('menuSearchInput');
+        if (el){ el.focus(); var len = el.value.length; el.setSelectionRange(len, len); }
+      });
+    }
+    content.querySelectorAll('[data-usual-add]').forEach(function(el){
+      el.addEventListener('click', function(e){ e.stopPropagation(); addUsualToCart(); });
+    });
+
+    var reorderBtn = document.getElementById('reorderBtn');
+    if (reorderBtn) reorderBtn.addEventListener('click', function(){
+      setState({ cart: JSON.parse(JSON.stringify(state.lastOrderItems)), screen: 'cart', pickupSlot: null, redeemFreeCup: false });
+    });
   }
 
   document.getElementById('backBtn').addEventListener('click', backHome);
@@ -1435,6 +1525,19 @@
   render();
   updateTgBackButton();
   loadStamps();
+  loadUsual();
+  setInterval(function(){
+    var el = document.getElementById('closedCountdown');
+    if (!el) return;
+    var now = new Date();
+    var parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Phnom_Penh', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(now);
+    function get(t){ var f = parts.find(function(p){ return p.type === t; }); return f ? parseInt(f.value, 10) : 0; }
+    var nowSec = get('hour') * 3600 + get('minute') * 60 + get('second');
+    var diff = (8 * 3600) - nowSec;
+    if (diff < 0) diff += 86400;
+    var mm = Math.floor(diff / 60), ss = diff % 60;
+    el.textContent = '(' + mm + ':' + (ss < 10 ? '0' : '') + ss + ')';
+  }, 1000);
 })();
 </script>
 </body>
