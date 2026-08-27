@@ -253,7 +253,7 @@
   @media (min-width:480px){
     #app{max-width:430px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.08)}
   }
-.sub-cal-card{margin-top:6px;padding:14px;background:var(--card);border-radius:18px;border:1px solid var(--border)} .sub-cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px} .cal-nav-btn{width:30px;height:30px;border-radius:15px;background:var(--chip-bg);color:var(--chip-text);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;cursor:pointer} .cal-nav-btn.disabled{opacity:.35;pointer-events:none} .cal-nav-label{font-weight:800;font-size:14px} .sub-cal-dow{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11px;font-weight:700;color:var(--text-soft2);margin-bottom:4px} .sub-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px} .cal-day{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:700;color:var(--text)} .cal-day.empty{visibility:hidden} .cal-day.off{color:var(--text-soft2);opacity:.35} .cal-day.pick{background:var(--chip-bg);color:var(--chip-text);cursor:pointer} .cal-day.selected{background:var(--accent);color:#fff} .sub-cal-presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap} .cal-preset-chip{padding:8px 12px;border-radius:12px;background:var(--info-bg);color:var(--info-text);font-size:12px;font-weight:700;cursor:pointer} .sub-date-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px} .sub-date-chip{padding:7px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer} .sub-cal-empty{margin-top:10px;font-size:12.5px;color:var(--text-soft2);line-height:1.5} .addon-item .ctrl .btn.maxed{opacity:.35;pointer-events:none} </style>
+.sub-cal-card{margin-top:6px;padding:14px;background:var(--card);border-radius:18px;border:1px solid var(--border)} .sub-cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px} .cal-nav-btn{width:30px;height:30px;border-radius:15px;background:var(--chip-bg);color:var(--chip-text);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;cursor:pointer} .cal-nav-btn.disabled{opacity:.35;pointer-events:none} .cal-nav-label{font-weight:800;font-size:14px} .sub-cal-dow{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11px;font-weight:700;color:var(--text-soft2);margin-bottom:4px} .sub-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px} .cal-day{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;border-radius:12px;font-size:13px;font-weight:700;color:var(--text)} .cal-day.empty{visibility:hidden} .cal-day.off{color:var(--text-soft2);opacity:.35} .cal-day.pick{background:var(--chip-bg);color:var(--chip-text);cursor:pointer} .cal-day.selected{background:var(--accent);color:#fff} .sub-cal-presets{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap} .cal-preset-chip{padding:8px 12px;border-radius:12px;background:var(--info-bg);color:var(--info-text);font-size:12px;font-weight:700;cursor:pointer} .sub-date-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px} .sub-date-chip{padding:7px 10px;border-radius:12px;background:var(--accent);color:#fff;font-size:11.5px;font-weight:700;cursor:pointer} .sub-cal-empty{margin-top:10px;font-size:12.5px;color:var(--text-soft2);line-height:1.5} .addon-item .ctrl .btn.maxed{opacity:.35;pointer-events:none} .cal-day.maxed{opacity:.3} #cart-bar.raised{bottom:96px} .undo-toast{position:fixed;left:16px;right:16px;bottom:90px;max-width:390px;margin:0 auto;background:#2B2420;color:#fff;padding:12px 16px;border-radius:14px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.2)} .undo-toast .undo-btn{color:#8FD1FF;font-weight:800;cursor:pointer;margin-left:12px;flex-shrink:0} </style>
 </head>
 <body>
 <div id="app">
@@ -376,7 +376,7 @@
     var p = dateStr.split('-');
     if (p.length !== 3) return dateStr;
     return parseInt(p[2], 10) + ' ' + (MONTH_NAMES[parseInt(p[1], 10) - 1] || '') + ' ' + p[0];
-  }
+  } function formatShortDate(dateStr){ if (!dateStr) return ''; var p = dateStr.split('-'); if (p.length !== 3) return dateStr; return parseInt(p[2], 10) + ' ' + (MONTH_NAMES[parseInt(p[1], 10) - 1] || ''); }
   // "DD/MM/YYYY - HH:MM" in Cambodia local time, matching the Telegram
   // receipt's "Order Time:" formatting.
   function formatOrderTime(iso){
@@ -391,8 +391,8 @@
 
   var tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
 
-  var state = {
-    screen: 'home', cart: {}, category: 'Coffee', selectedItemId: null, itemQty: 1,
+  var removedToastTimer = null; var state = {
+    screen: 'home', cart: {}, lastRemoved: null, category: 'Coffee', selectedItemId: null, itemQty: 1,
     sugar: '100%', addons: {},
     redeemFreeCup: false, stamps: 0, freeCups: 0, orderCode: null,
     showReceiptNotice: false, rewardMsg: null,
@@ -523,17 +523,7 @@
       return { cart: cart };
     });
   }
-  function cartDec(id, sugar, addons){
-    sugar = sugar || '100%'; addons = addons || {};
-    var key = cartKey(id, sugar, addons);
-    setState(function(s){
-      var cart = Object.assign({}, s.cart);
-      var existing = cart[key];
-      var q = (existing ? existing.qty : 0) - 1;
-      if (q <= 0) delete cart[key]; else cart[key] = Object.assign({}, existing, { qty: q });
-      return { cart: cart };
-    });
-  }
+  function cartDec(id, sugar, addons){ sugar = sugar || '100%'; addons = addons || {}; var key = cartKey(id, sugar, addons); var removed = false; setState(function(s){ var cart = Object.assign({}, s.cart); var existing = cart[key]; var q = (existing ? existing.qty : 0) - 1; var patch = { cart: cart }; if (q <= 0){ delete cart[key]; removed = true; var m = MENU.find(function(x){ return x.id === id; }); patch.lastRemoved = { key: key, entry: existing, name: m ? m.name : '' }; } else { cart[key] = Object.assign({}, existing, { qty: q }); } return patch; }); if (removed){ if (removedToastTimer) clearTimeout(removedToastTimer); removedToastTimer = setTimeout(function(){ setState({ lastRemoved: null }); }, 4000); } } function undoRemoveLast(){ if (removedToastTimer){ clearTimeout(removedToastTimer); removedToastTimer = null; } setState(function(s){ if (!s.lastRemoved) return {}; var cart = Object.assign({}, s.cart); cart[s.lastRemoved.key] = s.lastRemoved.entry; return { cart: cart, lastRemoved: null }; }); } 
 
   // ---- subscriptions ----
   function openSubscribe(){ setState({ screen: 'subscribe', subItemId: state.selectedItemId, subSugar: state.sugar, subAddons: Object.assign({}, state.addons), subDates: [], subCalendarMonth: monthStrOf(todayDateStr()), subRemark: '', }); } function setSubSugar(v){ setState({ subSugar: v }); }
@@ -674,7 +664,7 @@
     sendOrder(orderPayload);
   }
 
-  function paySubscription(sub){ var remark = (sub.remark || '').trim().slice(0, 50); var timestamp = new Date().toISOString(); var orderPayload = { orderType: 'subscription', items: [{ name: sub.item.name, qty: 1, sugar: sub.sugar, addons: addonLabels(sub.addons), unitPrice: sub.unitPrice, }], subDates: sub.dates, subtotal: sub.total, discount: 0, total: sub.total, redeemedFreeCup: false, remark: remark, customer: tgUser ? { id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username, } : null, timestamp: timestamp, }; setState({ screen: 'confirm', orderCode: null, pendingSubscription: null, showReceiptNotice: false, paymentStatus: 'pending', orderTime: timestamp, confirmCupsEarned: sub.days, confirmSubInfo: { validUntil: sub.validUntil, itemName: sub.item.name, days: sub.days, freeDate: null, startDate: sub.startDate, }, }); sendOrder(orderPayload); } function sendOrder(payload){
+  function paySubscription(sub){ var remark = (sub.remark || '').trim().slice(0, 50); var timestamp = new Date().toISOString(); var orderPayload = { orderType: 'subscription', items: [{ name: sub.item.name, qty: 1, sugar: sub.sugar, addons: addonLabels(sub.addons), unitPrice: sub.unitPrice, }], subDates: sub.dates, subtotal: sub.total, discount: 0, total: sub.total, redeemedFreeCup: false, remark: remark, customer: tgUser ? { id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username, } : null, timestamp: timestamp, }; setState({ screen: 'confirm', orderCode: null, pendingSubscription: null, showReceiptNotice: false, paymentStatus: 'pending', orderTime: timestamp, confirmCupsEarned: sub.days, confirmSubInfo: { validUntil: sub.validUntil, dates: sub.dates, itemName: sub.item.name, days: sub.days, freeDate: null, startDate: sub.startDate, }, }); sendOrder(orderPayload); } function sendOrder(payload){
     fetch(ORDER_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     }).then(function(res){
@@ -876,7 +866,7 @@
       '</div>';
   }
 
-  function renderSubscribe(){ var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0]; var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1; var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>'; var sugarHtml = isDrink ? ( '<div class="sec-label">Sugar level</div><div class="sugar-row">' + SUGAR_OPTS.map(function(sg){ return '<div class="sugar-chip' + (sg === state.subSugar ? ' active' : '') + '" data-sub-sugar="' + sg + '">' + sg + '</div>'; }).join('') + '</div>' ) : ''; var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS; var addonsHtml = itemAddonOpts.map(function(ad){ var qty = state.subAddons[ad.id] || 0; if (qty <= 0){ return '<div class="addon-chip" data-sub-addon-inc="' + ad.id + '"><span class="addon-plus">+</span> ' + esc(ad.label) + ' · $' + money(ad.price) + '</div>'; } return '<div class="addon-item">' + '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' + '<div class="ctrl"><div class="btn" data-sub-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn' + (qty >= MAX_ADDON_QTY ? ' maxed' : '') + '" data-sub-addon-inc="' + ad.id + '">+</div></div>' + '</div>'; }).join(''); var unit = unitPrice(m, state.subSugar, state.subAddons); var dates = state.subDates.slice().sort(); var days = dates.length; var willRedeem = subWillRedeemFreeCup(); var discount = subFreeCupDiscount(unit); var subtotal = Math.round(unit * days * 100) / 100; var total = Math.max(0, Math.round((subtotal - discount) * 100) / 100); var w = subWindow(); var calMonth = state.subCalendarMonth || monthStrOf(w.min); var minMonth = monthStrOf(w.min); var maxMonth = monthStrOf(w.max); var monthLabel = (MONTH_NAMES[parseInt(calMonth.slice(5,7), 10) - 1] || '') + ' ' + calMonth.slice(0, 4); var firstDow = firstWeekdayOfMonth(calMonth); var totalDaysInMonth = daysInMonth(calMonth); var cellsHtml = ''; var i; for (i = 0; i < firstDow; i++){ cellsHtml += '<div class="cal-day empty"></div>'; } var d; for (d = 1; d <= totalDaysInMonth; d++){ var ds = dateStrOf(calMonth, d); var selectable = isSubSelectable(ds); var selected = dates.indexOf(ds) !== -1; var isSunday = (firstDow + d - 1) % 7 === 0; var cls = 'cal-day' + (selectable ? ' pick' : ' off') + (selected ? ' selected' : '') + (isSunday ? ' sun' : ''); cellsHtml += '<div class="' + cls + '" data-sub-cal-day="' + (selectable ? ds : '') + '">' + d + '</div>'; } var prevDisabled = calMonth <= minMonth; var nextDisabled = calMonth >= maxMonth; var calHtml = '' + '<div class="sub-cal-card">' + '<div class="sub-cal-nav">' + '<div class="cal-nav-btn' + (prevDisabled ? ' disabled' : '') + '" id="subCalPrev">‹</div>' + '<div class="cal-nav-label">' + esc(monthLabel) + '</div>' + '<div class="cal-nav-btn' + (nextDisabled ? ' disabled' : '') + '" id="subCalNext">›</div>' + '</div>' + '<div class="sub-cal-dow"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' + '<div class="sub-cal-grid">' + cellsHtml + '</div>' + '</div>'; var presetsHtml = '' + '<div class="sub-cal-presets">' + '<div class="cal-preset-chip" data-sub-preset="6">Next 6 days</div>' + '<div class="cal-preset-chip" data-sub-preset="week">Rest of this week</div>' + '<div class="cal-preset-chip" data-sub-preset="clear">Clear</div>' + '</div>'; var chipsHtml = days ? ( '<div class="sub-date-chips">' + dates.map(function(ds){ return '<div class="sub-date-chip" data-sub-date-remove="' + ds + '">' + esc(formatCalendarDate(ds)) + ' ✕</div>'; }).join('') + '</div>' ) : '<div class="sub-cal-empty">Tap dates on the calendar to build your subscription (up to ' + MAX_SUB_DAYS + ' days).</div>'; var bonusRow = (days && willRedeem) ? '<div class="row"><span>🎁 Free cup reward (last day free)</span><span>−$' + money(discount) + '</span></div>' : ''; var summaryHtml = days ? ( '<div class="sub-summary">' + '<div class="row"><span>Days selected</span><span>' + days + ' / ' + MAX_SUB_DAYS + '</span></div>' + bonusRow + '<div class="row total"><span>Total</span><span>$' + money(total) + '</span></div>' + '</div>' ) : ''; var remarkHtml = '' + '<div class="remark-box">' + '<div class="remark-label"><span>Order remark</span><span class="count" id="subRemarkCount">' + state.subRemark.length + '/50</span></div>' + '<textarea id="subRemarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.subRemark) + '</textarea>' + '</div>'; return '' + '<div class="item-hero">' + hero + '</div>' + '<div class="detail-body">' + '<div class="nm">Subscribe · ' + esc(m.name) + '</div>' + '<div class="pr">$' + money(unit) + '/day</div>' + sugarHtml + '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' + '<div class="sec-label">Pick your days</div>' + calHtml + presetsHtml + chipsHtml + '<div class="date-hint">Closed on Sundays · pick up to ' + MAX_SUB_DAYS + ' days within the next month</div>' + summaryHtml + remarkHtml + '</div>'; } function renderCart(){
+  function renderSubscribe(){ var m = MENU.find(function(x){ return x.id === state.subItemId; }) || MENU[0]; var isDrink = DRINK_CATEGORIES.indexOf(m.category) !== -1; var hero = m.photo ? '<img src="' + esc(m.photo) + '" alt="">' : '<span class="lbl ph-glyph">☕</span>'; var sugarHtml = isDrink ? ( '<div class="sec-label">Sugar level</div><div class="sugar-row">' + SUGAR_OPTS.map(function(sg){ return '<div class="sugar-chip' + (sg === state.subSugar ? ' active' : '') + '" data-sub-sugar="' + sg + '">' + sg + '</div>'; }).join('') + '</div>' ) : ''; var itemAddonOpts = (m.category === 'Matcha' || m.category === 'Tea & Refreshment') ? [] : ADDON_OPTS; var addonsHtml = itemAddonOpts.map(function(ad){ var qty = state.subAddons[ad.id] || 0; if (qty <= 0){ return '<div class="addon-chip" data-sub-addon-inc="' + ad.id + '"><span class="addon-plus">+</span> ' + esc(ad.label) + ' · $' + money(ad.price) + '</div>'; } return '<div class="addon-item">' + '<div class="lbl">' + esc(ad.label) + ' · +$' + money(ad.price) + '</div>' + '<div class="ctrl"><div class="btn" data-sub-addon-dec="' + ad.id + '">–</div><div class="n">' + qty + '</div><div class="btn' + (qty >= MAX_ADDON_QTY ? ' maxed' : '') + '" data-sub-addon-inc="' + ad.id + '">+</div></div>' + '</div>'; }).join(''); var unit = unitPrice(m, state.subSugar, state.subAddons); var dates = state.subDates.slice().sort(); var days = dates.length; var willRedeem = subWillRedeemFreeCup(); var discount = subFreeCupDiscount(unit); var subtotal = Math.round(unit * days * 100) / 100; var total = Math.max(0, Math.round((subtotal - discount) * 100) / 100); var w = subWindow(); var calMonth = state.subCalendarMonth || monthStrOf(w.min); var minMonth = monthStrOf(w.min); var maxMonth = monthStrOf(w.max); var monthLabel = (MONTH_NAMES[parseInt(calMonth.slice(5,7), 10) - 1] || '') + ' ' + calMonth.slice(0, 4); var firstDow = firstWeekdayOfMonth(calMonth); var totalDaysInMonth = daysInMonth(calMonth); var cellsHtml = ''; var i; for (i = 0; i < firstDow; i++){ cellsHtml += '<div class="cal-day empty"></div>'; } var d; for (d = 1; d <= totalDaysInMonth; d++){ var ds = dateStrOf(calMonth, d); var selectable = isSubSelectable(ds); var selected = dates.indexOf(ds) !== -1; var isSunday = (firstDow + d - 1) % 7 === 0; var atCap = days >= MAX_SUB_DAYS && !selected; var pick = selectable && !atCap; var cls = 'cal-day' + (pick ? ' pick' : ' off') + (selected ? ' selected' : '') + (isSunday ? ' sun' : '') + (atCap ? ' maxed' : ''); cellsHtml += '<div class="' + cls + '" data-sub-cal-day="' + (pick ? ds : '') + '">' + d + '</div>'; } var prevDisabled = calMonth <= minMonth; var nextDisabled = calMonth >= maxMonth; var calHtml = '' + '<div class="sub-cal-card">' + '<div class="sub-cal-nav">' + '<div class="cal-nav-btn' + (prevDisabled ? ' disabled' : '') + '" id="subCalPrev">‹</div>' + '<div class="cal-nav-label">' + esc(monthLabel) + '</div>' + '<div class="cal-nav-btn' + (nextDisabled ? ' disabled' : '') + '" id="subCalNext">›</div>' + '</div>' + '<div class="sub-cal-dow"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>' + '<div class="sub-cal-grid">' + cellsHtml + '</div>' + '</div>'; var presetsHtml = '' + '<div class="sub-cal-presets">' + '<div class="cal-preset-chip" data-sub-preset="6">Next 6 days</div>' + '<div class="cal-preset-chip" data-sub-preset="week">Rest of this week</div>' + '<div class="cal-preset-chip" data-sub-preset="clear">Clear</div>' + '</div>'; var chipsHtml = days ? ( '<div class="sub-date-chips">' + dates.map(function(ds){ return '<div class="sub-date-chip" data-sub-date-remove="' + ds + '">' + esc(formatCalendarDate(ds)) + ' ✕</div>'; }).join('') + '</div>' ) : '<div class="sub-cal-empty">Tap dates on the calendar to build your subscription (up to ' + MAX_SUB_DAYS + ' days).</div>'; var bonusRow = (days && willRedeem) ? '<div class="row"><span>🎁 Free cup reward (last day free)</span><span>−$' + money(discount) + '</span></div>' : ''; var summaryHtml = days ? ( '<div class="sub-summary">' + '<div class="row"><span>Days selected</span><span>' + days + ' / ' + MAX_SUB_DAYS + '</span></div>' + bonusRow + '<div class="row total"><span>Total</span><span>$' + money(total) + '</span></div>' + '</div>' ) : ''; var remarkHtml = '' + '<div class="remark-box">' + '<div class="remark-label"><span>Order remark</span><span class="count" id="subRemarkCount">' + state.subRemark.length + '/50</span></div>' + '<textarea id="subRemarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.subRemark) + '</textarea>' + '</div>'; return '' + '<div class="item-hero">' + hero + '</div>' + '<div class="detail-body">' + '<div class="nm">Subscribe · ' + esc(m.name) + '</div>' + '<div class="pr">$' + money(unit) + '/day</div>' + sugarHtml + '<div class="sec-label">Add-ons</div><div class="addon-row">' + addonsHtml + '</div>' + '<div class="sec-label">Pick your days</div>' + calHtml + presetsHtml + chipsHtml + '<div class="date-hint">Closed on Sundays · pick up to ' + MAX_SUB_DAYS + ' days within the next month</div>' + summaryHtml + remarkHtml + '</div>'; } function renderCart(){
     var keys = Object.keys(state.cart);
     if (keys.length === 0){
       return '<div class="empty-cart"><div class="t1">Your bag is empty</div><div class="t2">Add something tasty from the menu.</div></div>';
@@ -919,8 +909,8 @@
     var pickupHtml = '' +
       '<div class="sec-label">Deliver by:</div>' +
       '<div class="day-toggle pickup-toggle">' +
-      '<div class="d-opt' + (state.pickupSlot === 'morning' ? ' active' : '') + '" data-pickup-slot="morning">🌅 Morning</div>' +
-      '<div class="d-opt' + (state.pickupSlot === 'afternoon' ? ' active' : '') + '" data-pickup-slot="afternoon">☀️ Afternoon</div>' +
+      '<div class="d-opt' + (state.pickupSlot === 'morning' ? ' active' : '') + '" data-pickup-slot="morning">🌅 Morning · 7–8 AM</div>' +
+      '<div class="d-opt' + (state.pickupSlot === 'afternoon' ? ' active' : '') + '" data-pickup-slot="afternoon">☀️ Afternoon · 1–2 PM</div>' +
       '</div>';
     
     var remarkHtml = '' +
@@ -929,7 +919,7 @@
         '<textarea id="remarkInput" maxlength="50" placeholder="Any note for us? (optional)">' + esc(state.remark) + '</textarea>' +
       '</div>';
 
-    return '' +
+    var undoHtml = state.lastRemoved ? ('<div class="undo-toast">Removed ' + esc(state.lastRemoved.name) + '<span class="undo-btn" id="undoRemoveBtn">Undo</span></div>') : ''; return '' +
       '<div class="cart-list">' + rowsHtml + '</div>' +
       deliveryNoticeHtml +
       pickupHtml +
@@ -939,7 +929,7 @@
         '<div class="row"><span>Subtotal</span><span>$' + money(totals.subtotal) + '</span></div>' +
         discountRow +
         '<div class="row total"><span>Total</span><span>$' + money(totals.total) + '</span></div>' +
-      '</div>';
+      '</div>' + undoHtml;
   }
 
   function renderPay(){
@@ -949,7 +939,7 @@
     var subSummary = sub ? (
       '<div class="pay-sub-summary">' +
         esc(sub.item.name) + ' × ' + subDaysLabel + '<br>' +
-        esc(formatCalendarDate(sub.startDate)) + ' → ' + esc(formatCalendarDate(sub.validUntil)) +
+        esc((sub.dates || []).map(function(d){ return formatShortDate(d); }).join(', ')) +
       '</div>'
     ) : '';
 
@@ -978,7 +968,7 @@
     }[state.paymentStatus] || '';
     var payStatusHtml = payStatusText ? '<div class="pay-status ' + esc(state.paymentStatus) + '">' + esc(payStatusText) + '</div>' : '';
     var orderTimeHtml = state.orderTime ? '<div class="order-time">Order Time: ' + esc(formatOrderTime(state.orderTime)) + '</div>' : '';
-    var subHtml = isSub ? '<div class="sub-valid-box">☕ Your Subscription valid until <b>' + esc(formatCalendarDate(state.confirmSubInfo.validUntil)) + '</b></div>' : ''; var etaHtml = '';
+    var subHtml = isSub ? '<div class="sub-valid-box">☕ Your Subscription — ' + state.confirmSubInfo.days + ' day' + (state.confirmSubInfo.days === 1 ? '' : 's') + '<br><span style="opacity:.85">' + esc((state.confirmSubInfo.dates || []).map(function(d){ return formatShortDate(d); }).join(', ')) + '</span></div>' : ''; var etaHtml = '';
     if (!isSub && state.confirmPickupSlot){
       var etaLine1 = state.confirmPickupSlot === 'afternoon' ? '🛵 Arriving this afternoon' : '🛵 Arriving in the morning round';
       var etaLine2 = state.confirmPickupSlot === 'afternoon' ? 'Between 1:00 and 2:00 PM' : 'Between 7:00 and 8:00 AM';
@@ -1052,17 +1042,7 @@
 
     var cartCount = Object.keys(state.cart).reduce(function(a,k){ return a + state.cart[k].qty; }, 0);
     var cartBar = document.getElementById('cart-bar');
-    var showCartBar = state.screen === 'home' && cartCount > 0;
-    if (showCartBar){
-      var totals = computeTotal();
-      cartBar.className = 'show';
-      cartBar.textContent = 'View bag · ' + cartCount + ' · $' + money(totals.total);
-    } else {
-      cartBar.className = '';
-      cartBar.textContent = '';
-    }
-
-    updateMainButton();
+    var showCartBar = ['home','item','subscribe'].indexOf(state.screen) !== -1 && cartCount > 0; if (showCartBar){ var totals = computeTotal(); var raised = state.screen !== 'home'; cartBar.className = 'show' + (raised ? ' raised' : ''); cartBar.textContent = 'View bag · ' + cartCount + ' · $' + money(totals.total); } else { cartBar.className = ''; cartBar.textContent = ''; } updateMainButton();
     bindScreenEvents();
   }
 
@@ -1217,7 +1197,7 @@
       });
     });
 
-    var redeemToggle = document.getElementById('redeemToggle');
+    var undoRemoveBtn = document.getElementById('undoRemoveBtn'); if (undoRemoveBtn) undoRemoveBtn.addEventListener('click', undoRemoveLast); var redeemToggle = document.getElementById('redeemToggle');
     if (redeemToggle) redeemToggle.addEventListener('click', toggleRedeem);
 
     content.querySelectorAll('[data-pickup-slot]').forEach(function(el){
