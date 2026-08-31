@@ -1132,7 +1132,7 @@
         if (tg.SecondaryButton) tg.SecondaryButton.hide();
       }
       wrap.className = '';
-      document.getElementById('content').className = '';
+      document.getElementById('content').classList.remove('has-fallback-btn');
     } else {
       if (showMain){
         wrap.className = 'show';
@@ -1141,11 +1141,11 @@
         btn.onclick = disabledReason ? null : action;
         if (label2 && !disabledReason){ btn2.style.display = 'flex'; btn2.textContent = label2; btn2.onclick = action2; }
         else { btn2.style.display = 'none'; }
-        document.getElementById('content').className = 'has-fallback-btn';
+        document.getElementById('content').classList.add('has-fallback-btn');
       } else {
         wrap.className = '';
         btn2.style.display = 'none';
-        document.getElementById('content').className = '';
+        document.getElementById('content').classList.remove('has-fallback-btn');
       }
     }
   }
