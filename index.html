@@ -29,11 +29,13 @@
   ::-webkit-scrollbar{display:none}
   @keyframes popIn{0%{transform:scale(.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1}}
   @keyframes fadeUp{0%{transform:translateY(8px);opacity:0}100%{transform:translateY(0);opacity:1}}
+  @keyframes screenIn{0%{opacity:0;transform:translateY(10px) scale(.99)}100%{opacity:1;transform:translateY(0) scale(1)}}
+  #content.screen-enter{animation:screenIn .32s cubic-bezier(.16,1,.3,1)}
 
   #app{min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;position:relative}
 
   /* Header */
-  #header{flex-shrink:0;height:52px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;position:sticky;top:0;z-index:5}
+  #header{flex-shrink:0;height:52px;background:rgba(251,241,225,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 8px;position:sticky;top:0;z-index:5;box-shadow:0 2px 10px rgba(43,36,32,.04)}
   #header .back-btn{width:36px;height:36px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--text);cursor:pointer;visibility:hidden}
   #header .back-btn.show{visibility:visible}
   #header .back-btn:active{background:rgba(43,36,32,.1)}
@@ -91,7 +93,9 @@
   .day-toggle .d-opt.active{background:var(--accent);color:#fff}
 
   .item-list{padding:4px 16px 100px;display:flex;flex-direction:column;gap:10px}
-  .item-card{display:flex;gap:12px;padding:10px;background:var(--card);border-radius:18px;border:1px solid var(--border)}
+  .item-card{display:flex;gap:12px;padding:10px;background:var(--card);border-radius:18px;border:1px solid var(--border);box-shadow:0 2px 10px rgba(43,36,32,.05);opacity:0;animation:fadeUp .38s ease forwards}
+  .item-card:active{transform:scale(.985)}
+  .item-card:nth-child(1){animation-delay:.02s}.item-card:nth-child(2){animation-delay:.05s}.item-card:nth-child(3){animation-delay:.08s}.item-card:nth-child(4){animation-delay:.11s}.item-card:nth-child(5){animation-delay:.14s}.item-card:nth-child(6){animation-delay:.17s}.item-card:nth-child(n+7){animation-delay:.19s}
   .item-thumb{width:72px;height:72px;border-radius:14px;flex-shrink:0;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 8px,#dceefa 8px,#dceefa 16px);display:flex;align-items:center;justify-content:center;overflow:hidden}
   .item-thumb img{width:100%;height:100%;object-fit:cover}
   .item-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line} .ph-glyph{font-size:32px;font-family:inherit;line-height:1}
@@ -102,12 +106,14 @@
   .qty-pill{flex-shrink:0;display:flex;align-items:center;gap:8px;align-self:center;background:var(--accent);border-radius:14px;padding:4px}
   .qty-pill .btn{width:22px;height:22px;border-radius:11px;background:rgba(255,255,255,.2);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
   .qty-pill .n{min-width:14px;text-align:center;color:#fff;font-weight:800;font-size:13px}
-  .add-btn{flex-shrink:0;align-self:center;width:30px;height:30px;border-radius:15px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;cursor:pointer}
-  .add-btn:active{background:var(--accent-dark)}
+  .add-btn{flex-shrink:0;align-self:center;width:30px;height:30px;border-radius:15px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;cursor:pointer;box-shadow:0 3px 8px rgba(28,127,193,.3);transition:transform .1s}
+  .add-btn:active{background:var(--accent-dark);transform:scale(.9)}
 
   /* Home — grid (horizontal) layout */
   .item-grid{padding:4px 16px 100px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-  .grid-card{background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column}
+  .grid-card{background:var(--card);border-radius:18px;border:1px solid var(--border);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 2px 10px rgba(43,36,32,.05);opacity:0;animation:fadeUp .38s ease forwards}
+  .grid-card:active{transform:scale(.98)}
+  .grid-card:nth-child(1){animation-delay:.02s}.grid-card:nth-child(2){animation-delay:.05s}.grid-card:nth-child(3){animation-delay:.08s}.grid-card:nth-child(4){animation-delay:.11s}.grid-card:nth-child(5){animation-delay:.14s}.grid-card:nth-child(6){animation-delay:.17s}.grid-card:nth-child(n+7){animation-delay:.19s}
   .grid-thumb{width:100%;aspect-ratio:1/1;cursor:pointer;background:repeating-linear-gradient(135deg,var(--info-bg),var(--info-bg) 8px,#dceefa 8px,#dceefa 16px);display:flex;align-items:center;justify-content:center;overflow:hidden}
   .grid-thumb img{width:100%;height:100%;object-fit:cover}
   .grid-thumb .lbl{font-family:ui-monospace,monospace;font-size:8px;color:#7fa8c4;text-align:center;padding:4px;line-height:1.3;white-space:pre-line}
@@ -134,7 +140,8 @@
   .addon-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:14px;background:var(--chip-bg)}
   .addon-item .lbl{font-size:12.5px;font-weight:700;color:var(--chip-text)}
   .addon-item .ctrl{display:flex;align-items:center;gap:10px}
-  .addon-item .ctrl .btn{width:24px;height:24px;border-radius:12px;background:var(--card);color:var(--chip-text);display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}
+  .addon-item .ctrl .btn{width:24px;height:24px;border-radius:12px;background:var(--card);color:var(--chip-text);display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer;transition:transform .1s}
+  .ctrl .btn:active{transform:scale(.85);background:var(--info-bg)}
   .addon-item .ctrl .n{min-width:14px;text-align:center;font-weight:800;font-size:13px}
   .date-hint{font-size:11.5px;color:var(--text-soft2);margin-top:6px}
   .qty-row{display:flex;align-items:center;justify-content:space-between;margin-top:24px;padding:14px 16px;background:var(--card);border-radius:16px;border:1px solid var(--border)}
@@ -237,14 +244,14 @@
   .reward-msg{margin-top:16px;padding:12px 14px;background:var(--info-bg);border-radius:14px;font-size:12.5px;color:var(--info-text);font-weight:700;animation:fadeUp .3s ease}
 
   /* Floating cart bar */
-  #cart-bar{position:fixed;left:16px;right:16px;bottom:16px;max-width:390px;margin:0 auto;height:50px;border-radius:16px;background:var(--accent);color:#fff;display:none;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14.5px;cursor:pointer;box-shadow:0 8px 20px rgba(28,127,193,.35);z-index:6}
+  #cart-bar{position:fixed;left:16px;right:16px;bottom:16px;max-width:390px;margin:0 auto;height:50px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;display:none;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:14.5px;cursor:pointer;box-shadow:0 10px 24px rgba(28,127,193,.4);transition:transform .12s;z-index:6}
   #cart-bar.show{display:flex}
 
   /* Fallback main button (used when not inside Telegram) */
   #main-btn-wrap{position:fixed;left:0;right:0;bottom:0;max-width:430px;margin:0 auto;padding:8px 16px 20px;background:linear-gradient(to top,var(--bg) 60%,rgba(251,241,225,0));display:none;z-index:6}
   #main-btn-wrap.show{display:flex;gap:10px}
-  #main-btn{flex:1;height:50px;border-radius:14px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer}
-  #main-btn:active{background:var(--accent-dark)}
+  #main-btn{flex:1;height:50px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 6px 16px rgba(28,127,193,.32);transition:transform .1s}
+  #main-btn:active{background:var(--accent-dark);transform:scale(.97)}
   #main-btn2{flex:1;height:50px;border-radius:14px;background:var(--chip-bg);color:var(--chip-text);display:none;align-items:center;justify-content:center;font-weight:800;font-size:15px;cursor:pointer}
   #main-btn2:active{background:var(--border)}
 
@@ -272,6 +279,16 @@
   "use strict";
 
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+  function haptic(type){
+    if (!tg || !tg.HapticFeedback) return;
+    try {
+      if (type === 'light') tg.HapticFeedback.impactOccurred('light');
+      else if (type === 'medium') tg.HapticFeedback.impactOccurred('medium');
+      else if (type === 'select') tg.HapticFeedback.selectionChanged();
+      else if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+      else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+    } catch (e) {}
+  }
   var ORDER_ENDPOINT = "/api/order";
   var ORDER_STATUS_ENDPOINT = "/api/order-status";
 
@@ -480,10 +497,11 @@
   }
   function incItemQty(){ setState(function(s){ return { itemQty: Math.min(9, s.itemQty + 1) }; }); }
   function decItemQty(){ setState(function(s){ return { itemQty: Math.max(1, s.itemQty - 1) }; }); }
-  function setSugar(v){ setState({ sugar: v }); }
+  function setSugar(v){ haptic('select'); setState({ sugar: v }); }
   // Add-ons can now be added 1 or more times (e.g. 2× Extra Shot) instead of
   // just toggled on/off.
   function incAddon(id){
+    haptic('select');
     setState(function(s){
       var addons = Object.assign({}, s.addons);
       addons[id] = Math.min(MAX_ADDON_QTY, (addons[id] || 0) + 1);
@@ -491,6 +509,7 @@
     });
   }
   function decAddon(id){
+    haptic('select');
     setState(function(s){
       var addons = Object.assign({}, s.addons);
       var q = (addons[id] || 0) - 1;
@@ -502,6 +521,7 @@
   function setPickupSlot(v){ setState({ pickupSlot: v }); }
 
   function addToCart(){
+    haptic('light');
     var id = state.selectedItemId, qty = state.itemQty, sugar = state.sugar, addons = state.addons;
     var key = cartKey(id, sugar, addons);
     var editingKey = state.editingCartKey;
@@ -514,6 +534,7 @@
     });
   }
   function cartInc(id, sugar, addons){
+    haptic('light');
     sugar = sugar || '100%'; addons = addons || {};
     var key = cartKey(id, sugar, addons);
     setState(function(s){
@@ -523,11 +544,11 @@
       return { cart: cart };
     });
   }
-  function cartDec(id, sugar, addons){ sugar = sugar || '100%'; addons = addons || {}; var key = cartKey(id, sugar, addons); var removed = false; setState(function(s){ var cart = Object.assign({}, s.cart); var existing = cart[key]; var q = (existing ? existing.qty : 0) - 1; var patch = { cart: cart }; if (q <= 0){ delete cart[key]; removed = true; var m = MENU.find(function(x){ return x.id === id; }); patch.lastRemoved = { key: key, entry: existing, name: m ? m.name : '' }; } else { cart[key] = Object.assign({}, existing, { qty: q }); } return patch; }); if (removed){ if (removedToastTimer) clearTimeout(removedToastTimer); removedToastTimer = setTimeout(function(){ setState({ lastRemoved: null }); }, 4000); } } function undoRemoveLast(){ if (removedToastTimer){ clearTimeout(removedToastTimer); removedToastTimer = null; } setState(function(s){ if (!s.lastRemoved) return {}; var cart = Object.assign({}, s.cart); cart[s.lastRemoved.key] = s.lastRemoved.entry; return { cart: cart, lastRemoved: null }; }); } 
+  function cartDec(id, sugar, addons){ haptic('light'); sugar = sugar || '100%'; addons = addons || {}; var key = cartKey(id, sugar, addons); var removed = false; setState(function(s){ var cart = Object.assign({}, s.cart); var existing = cart[key]; var q = (existing ? existing.qty : 0) - 1; var patch = { cart: cart }; if (q <= 0){ delete cart[key]; removed = true; var m = MENU.find(function(x){ return x.id === id; }); patch.lastRemoved = { key: key, entry: existing, name: m ? m.name : '' }; } else { cart[key] = Object.assign({}, existing, { qty: q }); } return patch; }); if (removed){ if (removedToastTimer) clearTimeout(removedToastTimer); removedToastTimer = setTimeout(function(){ setState({ lastRemoved: null }); }, 4000); } } function undoRemoveLast(){ haptic('light'); if (removedToastTimer){ clearTimeout(removedToastTimer); removedToastTimer = null; } setState(function(s){ if (!s.lastRemoved) return {}; var cart = Object.assign({}, s.cart); cart[s.lastRemoved.key] = s.lastRemoved.entry; return { cart: cart, lastRemoved: null }; }); } 
 
   // ---- subscriptions ----
   function openSubscribe(){ setState({ screen: 'subscribe', subItemId: state.selectedItemId, subSugar: state.sugar, subAddons: Object.assign({}, state.addons), subDates: [], subCalendarMonth: monthStrOf(todayDateStr()), subRemark: '', }); } function setSubSugar(v){ setState({ subSugar: v }); }
-  function toggleSubDate(dateStr){ if (!isSubSelectable(dateStr)) return; setState(function(s){ var dates = s.subDates.slice(); var idx = dates.indexOf(dateStr); if (idx !== -1){ dates.splice(idx, 1); } else { if (dates.length >= MAX_SUB_DAYS) return {}; dates.push(dateStr); dates.sort(); } return { subDates: dates }; }); } function removeSubDate(dateStr){ setState(function(s){ return { subDates: s.subDates.filter(function(d){ return d !== dateStr; }) }; }); } function applySubPreset(kind){ setState(function(s){ if (kind === 'clear') return { subDates: [] }; var dates = kind === 'week' ? thisWeekWeekdayDates() : nextSelectableDates(MAX_SUB_DAYS); return { subDates: dates.slice(0, MAX_SUB_DAYS) }; }); } function navSubCalendar(dir){ setState(function(s){ var cur = s.subCalendarMonth || monthStrOf(todayDateStr()); var next = addMonthsToMonthStr(cur, dir); var minM = monthStrOf(todayDateStr()); var maxM = monthStrOf(addMonthToDateStr(todayDateStr())); if (next < minM) next = minM; if (next > maxM) next = maxM; return { subCalendarMonth: next }; }); } function incSubAddon(id){
+  function toggleSubDate(dateStr){ if (!isSubSelectable(dateStr)) return; haptic('select'); setState(function(s){ var dates = s.subDates.slice(); var idx = dates.indexOf(dateStr); if (idx !== -1){ dates.splice(idx, 1); } else { if (dates.length >= MAX_SUB_DAYS) return {}; dates.push(dateStr); dates.sort(); } return { subDates: dates }; }); } function removeSubDate(dateStr){ setState(function(s){ return { subDates: s.subDates.filter(function(d){ return d !== dateStr; }) }; }); } function applySubPreset(kind){ setState(function(s){ if (kind === 'clear') return { subDates: [] }; var dates = kind === 'week' ? thisWeekWeekdayDates() : nextSelectableDates(MAX_SUB_DAYS); return { subDates: dates.slice(0, MAX_SUB_DAYS) }; }); } function navSubCalendar(dir){ setState(function(s){ var cur = s.subCalendarMonth || monthStrOf(todayDateStr()); var next = addMonthsToMonthStr(cur, dir); var minM = monthStrOf(todayDateStr()); var maxM = monthStrOf(addMonthToDateStr(todayDateStr())); if (next < minM) next = minM; if (next > maxM) next = maxM; return { subCalendarMonth: next }; }); } function incSubAddon(id){
     setState(function(s){
       var addons = Object.assign({}, s.subAddons);
       addons[id] = Math.min(MAX_ADDON_QTY, (addons[id] || 0) + 1);
@@ -665,12 +686,14 @@
   }
 
   function paySubscription(sub){ var remark = (sub.remark || '').trim().slice(0, 50); var timestamp = new Date().toISOString(); var orderPayload = { orderType: 'subscription', items: [{ name: sub.item.name, qty: 1, sugar: sub.sugar, addons: addonLabels(sub.addons), unitPrice: sub.unitPrice, }], subDates: sub.dates, subtotal: sub.total, discount: 0, total: sub.total, redeemedFreeCup: false, remark: remark, customer: tgUser ? { id: tgUser.id, firstName: tgUser.first_name, lastName: tgUser.last_name, username: tgUser.username, } : null, timestamp: timestamp, }; setState({ screen: 'confirm', orderCode: null, pendingSubscription: null, showReceiptNotice: false, paymentStatus: 'pending', orderTime: timestamp, confirmCupsEarned: sub.days, confirmSubInfo: { validUntil: sub.validUntil, dates: sub.dates, itemName: sub.item.name, days: sub.days, freeDate: null, startDate: sub.startDate, }, }); sendOrder(orderPayload); } function sendOrder(payload){
+    haptic('medium');
     fetch(ORDER_ENDPOINT, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
     }).then(function(res){
       return res.json().catch(function(){ return {}; });
     }).then(function(data){
-      if (!data || !data.ok) return;
+      if (!data || !data.ok) { haptic('error'); return; }
+      haptic('success');
       setState(function(s){
         var patch = { showReceiptNotice: !!data.customerNotified };
         if (data.orderCode) patch.orderCode = data.orderCode;
@@ -1021,6 +1044,7 @@
 
   function render(){
     var content = document.getElementById('content');
+    var prevScreen = window.__lastScreen;
     var html = '';
     if (state.screen === 'home') html = renderHome();
     else if (state.screen === 'item') html = renderItem();
@@ -1030,6 +1054,12 @@
     else if (state.screen === 'confirm') html = renderConfirm();
     else if (state.screen === 'rewards') html = renderRewards();
     content.innerHTML = html;
+    if (state.screen !== prevScreen){
+      content.classList.remove('screen-enter');
+      void content.offsetWidth;
+      content.classList.add('screen-enter');
+      window.__lastScreen = state.screen;
+    }
 
     document.getElementById('headerTitle').textContent = screenTitle();
     var showBack = ['item','cart','rewards','pay','subscribe'].indexOf(state.screen) !== -1;
