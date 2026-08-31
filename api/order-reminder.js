@@ -41,11 +41,17 @@ export default async function handler(req, res) {
         // Paused indefinitely starting 20 Aug 2026 at the shop owner's request --
         // set REMINDERS_PAUSED back to false when reminders should resume.
         const REMINDERS_PAUSED = true;
-        if (REMINDERS_PAUSED) {
+        // Reminders stay paused globally at the shop owner's request. To
+        // resume the reminder for specific customers only (e.g. a limited
+        // test) without lifting the pause for everyone, add their Telegram
+        // @username (no @, lowercase) to TARGETED_USERNAMES below -- the
+        // pause is bypassed just for those customers.
+        const TARGETED_USERNAMES = ['lach_vichet'];
+        if (REMINDERS_PAUSED && TARGETED_USERNAMES.length === 0) {
                   console.log(`Order reminder paused (indefinite) for ${todayInPhnomPenh()} -- skipping run.`);
                   return res.status(200).json({ ok: true, paused: true, date: todayInPhnomPenh() });
         }
-      
+
       let client;
       try {
               client = await getClient();
@@ -78,6 +84,7 @@ export default async function handler(req, res) {
 
       const knownUsers = new Set();
       const orderedSince1pm = new Set();
+      const usernameByUserId = new Map();
 
       try {
               for await (const key of client.scanIterator({ MATCH: 'order:*', COUNT: 100 })) {
@@ -89,6 +96,8 @@ export default async function handler(req, res) {
                         if (!userId) continue;
 
                         knownUsers.add(userId);
+                      const username = order.customer && order.customer.username ? String(order.customer.username).toLowerCase() : null;
+                      if (username) usernameByUserId.set(userId, username);
                         if (order.orderType === 'subscription') continue; // handled via activeSubUsers above
 
                         const ts = order.timestamp ? new Date(order.timestamp).getTime() : NaN;
@@ -105,7 +114,13 @@ export default async function handler(req, res) {
 
       let reminded = 0;
       let skipped = 0;
-      for (const userId of knownUsers) {
+      let targetUsers = knownUsers;
+if (REMINDERS_PAUSED && TARGETED_USERNAMES.length > 0) {
+  const targetSet = new Set(TARGETED_USERNAMES.map((u) => u.toLowerCase()));
+  targetUsers = new Set([...knownUsers].filter((uid) => targetSet.has(usernameByUserId.get(uid))));
+}
+
+for (const userId of targetUsers) {
               if (activeSubUsers.has(userId) || orderedSince1pm.has(userId)) {
                         skipped++;
                         continue;
@@ -127,7 +142,7 @@ export default async function handler(req, res) {
       // Post a short run summary to the staff group (best-effort -- never
       // blocks or fails the run itself).
       if (GROUP_CHAT_ID) {
-              const summary = `Order reminder run\nKnown customers: ${knownUsers.size}\nActive subscribers (skipped): ${activeSubUsers.size}\nAlready ordered since 1PM (skipped): ${orderedSince1pm.size}\nReminded: ${reminded}`;
+              const summary = `Order reminder run\nKnown customers: ${knownUsers.size}\nTargeted this run: ${targetUsers.size}${REMINDERS_PAUSED && TARGETED_USERNAMES.length > 0 ? ' (paused globally, testing: ' + TARGETED_USERNAMES.join(', ') + ')' : ''}\nActive subscribers (skipped): ${activeSubUsers.size}\nAlready ordered since 1PM (skipped): ${orderedSince1pm.size}\nReminded: ${reminded}`;
               try {
                         await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
                                     method: 'POST',
@@ -140,7 +155,7 @@ export default async function handler(req, res) {
       }
 
       return res.status(200).json({
-              ok: true, knownUsers: knownUsers.size, activeSubscribers: activeSubUsers.size, reminded, skipped,
+              ok: true, knownUsers: knownUsers.size, targeted: targetUsers.size, activeSubscribers: activeSubUsers.size, reminded, skipped,
       });
 }
 
