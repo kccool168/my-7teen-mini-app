@@ -20,12 +20,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  const CRON_SECRET = process.env.CRON_SECRET;
-  if (CRON_SECRET) {
-    const auth = req.headers['authorization'];
-    if (auth !== `Bearer ${CRON_SECRET}`) {
-      return res.status(401).json({ ok: false, error: 'Unauthorized' });
-    }
+  const TEMP_ONE_TIME_TOKEN = 'tk_7teen_glass_singhouyy_20260901';
+  const auth = req.headers['authorization'];
+  if (auth !== `Bearer ${TEMP_ONE_TIME_TOKEN}`) {
+    return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
 
   let body;
