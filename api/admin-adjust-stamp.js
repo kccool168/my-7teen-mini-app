@@ -38,9 +38,11 @@ export default async function handler(req, res) {
   if (!usernameRaw || typeof usernameRaw !== 'string') {
     return res.status(400).json({ ok: false, error: 'Missing username' });
   }
-  if (delta === null || delta === 0) {
+  if (!(body && body.notifyOnly) && (delta === null || delta === 0)) {
     return res.status(400).json({ ok: false, error: 'Missing or invalid delta (non-zero integer)' });
   }
+  const effectiveDelta = delta === null ? 0 : delta;
+  const notifyOnly = !!(body && body.notifyOnly);
 
   const username = usernameRaw.replace(/^@/, '').trim().toLowerCase();
   if (!username) {
@@ -84,7 +86,7 @@ export default async function handler(req, res) {
   try {
     const totalKey = `user:${userId}:total`;
     const usedKey = `user:${userId}:used`;
-    const newTotal = await client.incrBy(totalKey, delta);
+    const newTotal = notifyOnly ? (parseInt((await client.get(totalKey)) || '0', 10) || 0) : await client.incrBy(totalKey, effectiveDelta);
     if (newTotal < 0) {
       await client.set(totalKey, '0');
       finalTotal = 0;
@@ -107,9 +109,11 @@ export default async function handler(req, res) {
   if (BOT_TOKEN) {
     try {
       const who = firstName ? firstName : 'there';
-      const changeLine = delta > 0
-        ? `You just earned +${delta} stamp${delta === 1 ? '' : 's'} at 7Teen Cafe!`
-        : `Your stamp balance was adjusted by ${delta} at 7Teen Cafe.`;
+      const changeLine = notifyOnly
+        ? `Here's your current loyalty status at 7Teen Cafe:`
+        : (effectiveDelta > 0
+          ? `You just earned +${effectiveDelta} stamp${effectiveDelta === 1 ? '' : 's'} at 7Teen Cafe!`
+          : `Your stamp balance was adjusted by ${effectiveDelta} at 7Teen Cafe.`);
       const freeCupLine = freeCups > 0
         ? `\n\nYou have ${freeCups} free cup${freeCups === 1 ? '' : 's'} ready to redeem!`
         : '';
@@ -121,13 +125,13 @@ export default async function handler(req, res) {
       });
       const tgData = await tgRes.json();
       customerNotified = !!(tgRes.ok && tgData.ok);
-      if (!customerNotified) console.error('Stamp adjustment customer notify failed', tgData);
+      if (!customerNotified) { console.error('Stamp adjustment customer notify failed', tgData); global.__lastTgDebug = tgData; }
     } catch (err) {
       console.error('Stamp adjustment customer notify error', err);
     }
   }
 
   return res.status(200).json({
-    ok: true, userId, username, delta, total: finalTotal, stamps, freeCups, customerNotified,
+    ok: true, userId, username, delta: effectiveDelta, notifyOnly: !!(body && body.notifyOnly), total: finalTotal, stamps, freeCups, customerNotified, tgDebug: global.__lastTgDebug || null,
   });
 }
