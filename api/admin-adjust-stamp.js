@@ -39,6 +39,24 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'Invalid JSON body' });
   }
 
+  if (body && body.listNames) {
+    let client0;
+    try { client0 = await getClient(); } catch (err) { return res.status(500).json({ ok: false, error: 'Database unavailable' }); }
+    const people = new Map();
+    try {
+      for await (const key of client0.scanIterator({ MATCH: 'order:*', COUNT: 100 })) {
+        const raw = await client0.get(key);
+        if (!raw) continue;
+        let order; try { order = JSON.parse(raw); } catch (e) { continue; }
+        const c = order.customer || {};
+        const uid = c.id != null ? String(c.id) : null;
+        if (!uid) continue;
+        people.set(uid, { userId: uid, username: c.username || null, first_name: c.first_name || null, last_name: c.last_name || null });
+      }
+    } catch (err) { return res.status(500).json({ ok: false, error: 'Scan failed' }); }
+    return res.status(200).json({ ok: true, people: Array.from(people.values()) });
+  }
+
   const usernameRaw = body && body.username;
   const nameRaw = body && body.name;
   const notifyOnly = !!(body && body.notifyOnly);
