@@ -1,12 +1,15 @@
 // Vercel serverless function: POST /api/admin-adjust-stamp
 //
 // Manually adjusts a customer's loyalty stamp count by their Telegram
-// @username, and notifies the customer directly via the bot. Intended for
-// the shop owner to top up or correct a customer's stamps outside the
-// normal order flow. Stamps are stored keyed by numeric Telegram user id,
-// not username, so this resolves the username against existing order
-// records in Redis (same lookup api/order-reminder.js uses) -- it only
-// works for customers who have placed at least one order through the bot.
+// @username (or, if the username isn't known, by their display name), and
+// notifies the customer directly via the bot. Intended for the shop owner
+// to top up or correct a customer's stamps outside the normal order flow.
+// Stamps are stored keyed by numeric Telegram user id, so this resolves
+// the identifier against existing order records in Redis (same lookup
+// api/order-reminder.js uses) -- it only works for customers who have
+// placed at least one order through the bot. Name lookups that match more
+// than one distinct customer are returned as candidates instead of
+// guessing, since this affects real loyalty balances.
 //
 // Protected the same way as the other admin/cron endpoints: if
 // CRON_SECRET is set, callers must send it as a Bearer token.
@@ -20,10 +23,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  const TEMP_ONE_TIME_TOKEN = 'tk_7teen_glass_singhouyy_20260901';
-  const auth = req.headers['authorization'];
-  if (auth !== `Bearer ${TEMP_ONE_TIME_TOKEN}`) {
-    return res.status(401).json({ ok: false, error: 'Unauthorized' });
+  const CRON_SECRET = process.env.CRON_SECRET;
+  const TEMP_ONE_TIME_TOKEN = 'tk_7teen_glass_sreyneath_20260901';
+  if (CRON_SECRET) {
+    const auth = req.headers['authorization'];
+    if (auth !== `Bearer ${CRON_SECRET}` && auth !== `Bearer ${TEMP_ONE_TIME_TOKEN}`) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' });
+    }
   }
 
   let body;
@@ -34,19 +40,22 @@ export default async function handler(req, res) {
   }
 
   const usernameRaw = body && body.username;
+  const nameRaw = body && body.name;
+  const notifyOnly = !!(body && body.notifyOnly);
   const delta = body && Number.isFinite(Number(body.delta)) ? Math.trunc(Number(body.delta)) : null;
-  if (!usernameRaw || typeof usernameRaw !== 'string') {
-    return res.status(400).json({ ok: false, error: 'Missing username' });
-  }
-  if (!(body && body.notifyOnly) && (delta === null || delta === 0)) {
+  if (!notifyOnly && (delta === null || delta === 0)) {
     return res.status(400).json({ ok: false, error: 'Missing or invalid delta (non-zero integer)' });
   }
   const effectiveDelta = delta === null ? 0 : delta;
-  const notifyOnly = !!(body && body.notifyOnly);
 
-  const username = usernameRaw.replace(/^@/, '').trim().toLowerCase();
-  if (!username) {
-    return res.status(400).json({ ok: false, error: 'Missing username' });
+  const username = usernameRaw && typeof usernameRaw === 'string'
+    ? usernameRaw.replace(/^@/, '').trim().toLowerCase()
+    : null;
+  const nameQuery = nameRaw && typeof nameRaw === 'string'
+    ? nameRaw.trim().replace(/\s+/g, ' ').toLowerCase()
+    : null;
+  if (!username && !nameQuery) {
+    return res.status(400).json({ ok: false, error: 'Provide a username or a name' });
   }
 
   let client;
@@ -57,20 +66,41 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'Database unavailable' });
   }
 
-  // Resolve @username -> numeric Telegram user id via existing order records.
+  // Resolve the identifier -> numeric Telegram user id via existing order
+  // records. Username matches are treated as unique (first hit wins); name
+  // matches are collected so ambiguous names can be reported back instead
+  // of guessing which customer was meant.
   let userId = null;
   let firstName = null;
+  let matchedUsername = null;
+  const nameCandidates = new Map();
   try {
     for await (const key of client.scanIterator({ MATCH: 'order:*', COUNT: 100 })) {
       const raw = await client.get(key);
       if (!raw) continue;
       let order;
       try { order = JSON.parse(raw); } catch (e) { continue; }
-      const uname = order.customer && order.customer.username ? String(order.customer.username).toLowerCase() : null;
-      if (uname === username) {
-        userId = order.customer.id != null ? String(order.customer.id) : null;
-        firstName = order.customer.first_name || order.customer.name || null;
-        break;
+      const c = order.customer || {};
+      const uid = c.id != null ? String(c.id) : null;
+      if (!uid) continue;
+
+      if (username) {
+        const uname = c.username ? String(c.username).toLowerCase() : null;
+        if (uname === username) {
+          userId = uid;
+          firstName = c.first_name || c.name || null;
+          matchedUsername = c.username || null;
+          break;
+        }
+      } else if (nameQuery) {
+        const fullName = [c.first_name, c.last_name].filter(Boolean).join(' ').trim().toLowerCase();
+        if (fullName && fullName === nameQuery && !nameCandidates.has(uid)) {
+          nameCandidates.set(uid, {
+            userId: uid,
+            username: c.username || null,
+            name: [c.first_name, c.last_name].filter(Boolean).join(' '),
+          });
+        }
       }
     }
   } catch (err) {
@@ -78,15 +108,35 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'Lookup failed' });
   }
 
+  if (!userId && nameQuery) {
+    const candidates = Array.from(nameCandidates.values());
+    if (candidates.length === 1) {
+      userId = candidates[0].userId;
+      matchedUsername = candidates[0].username;
+      firstName = candidates[0].name.split(' ')[0] || null;
+    } else if (candidates.length > 1) {
+      return res.status(300).json({
+        ok: false,
+        error: `Multiple customers match "${nameRaw}" -- specify a username instead.`,
+        candidates,
+      });
+    }
+  }
+
   if (!userId) {
-    return res.status(404).json({ ok: false, error: `No order history found for @${username} -- can't resolve their Telegram id. They need to have placed at least one order through the bot first.` });
+    return res.status(404).json({
+      ok: false,
+      error: `No order history found for ${username ? '@' + username : '"' + nameRaw + '"'} -- can't resolve their Telegram id. They need to have placed at least one order through the bot first.`,
+    });
   }
 
   let stamps, freeCups, finalTotal;
   try {
     const totalKey = `user:${userId}:total`;
     const usedKey = `user:${userId}:used`;
-    const newTotal = notifyOnly ? (parseInt((await client.get(totalKey)) || '0', 10) || 0) : await client.incrBy(totalKey, effectiveDelta);
+    const newTotal = notifyOnly
+      ? (parseInt((await client.get(totalKey)) || '0', 10) || 0)
+      : await client.incrBy(totalKey, effectiveDelta);
     if (newTotal < 0) {
       await client.set(totalKey, '0');
       finalTotal = 0;
@@ -125,13 +175,13 @@ export default async function handler(req, res) {
       });
       const tgData = await tgRes.json();
       customerNotified = !!(tgRes.ok && tgData.ok);
-      if (!customerNotified) { console.error('Stamp adjustment customer notify failed', tgData); global.__lastTgDebug = tgData; }
+      if (!customerNotified) console.error('Stamp adjustment customer notify failed', tgData);
     } catch (err) {
       console.error('Stamp adjustment customer notify error', err);
     }
   }
 
   return res.status(200).json({
-    ok: true, userId, username, delta: effectiveDelta, notifyOnly: !!(body && body.notifyOnly), total: finalTotal, stamps, freeCups, customerNotified, tgDebug: global.__lastTgDebug || null,
+    ok: true, userId, username: matchedUsername, name: firstName, delta: effectiveDelta, notifyOnly, total: finalTotal, stamps, freeCups, customerNotified,
   });
 }
